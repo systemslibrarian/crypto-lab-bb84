@@ -1,59 +1,36 @@
 ## What It Is
 
-Browser-based simulation of BB84 Quantum Key Distribution — the first
-quantum cryptography protocol (Bennett & Brassard, 1984) and the only
-key exchange method in the crypto-lab suite whose security is guaranteed
-by physics rather than mathematics.
-
-While every post-quantum algorithm (ML-KEM, FALCON, SPHINCS+) relies on
-mathematical problems believed to be hard for quantum computers, BB84
-relies on the no-cloning theorem and the observer effect. A quantum computer
-running Shor's algorithm cannot break it — not because the math is harder,
-but because there is no math to attack.
-
-Simulates the complete six-step protocol: photon preparation, measurement,
-basis sifting, QBER error estimation, privacy amplification, and AES-256-GCM
-encryption with the derived key. Eve's eavesdropping attempt is detectable
-via the ~25% QBER she introduces. No backends. No simulated math — only
-simulated physics.
+Browser-based simulation of the BB84 Quantum Key Distribution protocol (Bennett & Brassard, 1984). BB84 is the first quantum cryptography protocol and the only key-exchange method whose security is guaranteed by physics — specifically the no-cloning theorem — rather than by computational hardness assumptions. This demo simulates the complete six-step protocol classically: photon preparation, measurement, basis sifting, QBER error estimation, SHA-256 privacy amplification, and AES-256-GCM encryption with the derived key. Eve's eavesdropping is detectable via the ~25% QBER she introduces.
 
 ## When to Use It
 
-- Understanding why QKD is fundamentally different from post-quantum
-  cryptography — one is computational, one is physical
-- Seeing exactly how eavesdropper detection works via QBER
-- Teaching the no-cloning theorem in a tangible, interactive context
-- Comparing information-theoretic security (BB84) vs. computational
-  security (everything else in the suite)
-- Do NOT use as a production QKD implementation — this simulates the
-  protocol classically using pseudo-random bits, not actual photons
+- **Understanding QKD vs. post-quantum cryptography** — BB84 security is information-theoretic (physics-based), while ML-KEM/ML-DSA security is computational (math-based)
+- **Teaching the no-cloning theorem** — the demo makes eavesdropper detection tangible by showing how Eve's measurement collapses photon states
+- **Seeing QBER-based eavesdropper detection** — run with and without Eve to compare error rates directly
+- **Comparing security models** — the built-in table contrasts RSA, ECDSA, AES-256, ML-KEM, and BB84 side by side
+- **Do NOT use as a production QKD implementation** — this simulates the protocol classically using `crypto.getRandomValues`, not actual photons or quantum hardware
 
 ## Live Demo
 
-https://systemslibrarian.github.io/crypto-lab-bb84/
+[https://systemslibrarian.github.io/crypto-lab-bb84/](https://systemslibrarian.github.io/crypto-lab-bb84/)
 
-## What Can Go Wrong
+Run the BB84 protocol with or without an eavesdropper (Eve) and watch photons animate through the quantum channel in real time. Adjust the number of photons (64–512), channel noise rate, and QBER detection threshold with sliders. After key exchange completes, the demo automatically encrypts and decrypts a user-supplied message with AES-256-GCM using the BB84-derived key.
 
-- **QBER threshold too high:** If you set the threshold above 25%, Eve
-  can intercept all photons and remain undetected — the protocol breaks
-- **Short key after amplification:** With few photons and high sacrifice
-  rate, privacy amplification may produce a key too short for AES-256.
-  Use at least 256 photons for reliable 256-bit final keys
-- **Side-channel attacks:** Real QKD implementations can leak via timing,
-  photon number splitting, or detector blinding. This simulation assumes
-  a perfect implementation — the no-cloning theorem protects the quantum
-  channel, not the hardware around it
-- **Authentication gap:** BB84 requires an authenticated classical channel
-  to prevent man-in-the-middle attacks. This demo assumes authentication
-  is provided — without it, Eve could impersonate Bob entirely
+## How to Run Locally
 
-## Real-World Usage
+```bash
+git clone https://github.com/systemslibrarian/crypto-lab-bb84
+cd crypto-lab-bb84
+npm install
+npm run dev
+```
 
-QKD networks are operational in China (2,000km Beijing–Shanghai backbone,
-Micius satellite), Europe (EuroQCI), South Korea, Japan, and Singapore.
-The technology is deployed for high-value government and financial
-communications where the infrastructure cost is justified.
+## Part of the Crypto-Lab Suite
 
-For most applications, NIST-standardized post-quantum cryptography
-(ML-KEM, ML-DSA) is more practical — it runs on existing infrastructure
-and scales globally. QKD and PQC are complementary, not competing.
+> One of 60+ live browser demos at
+> [systemslibrarian.github.io/crypto-lab](https://systemslibrarian.github.io/crypto-lab/)
+> — spanning Atbash (600 BCE) through NIST FIPS 203/204/205 (2024).
+
+---
+
+*"Whether you eat or drink, or whatever you do, do all to the glory of God." — 1 Corinthians 10:31*
