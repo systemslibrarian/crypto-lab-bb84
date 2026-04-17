@@ -78,10 +78,10 @@ function bitsToBytes(bits: Bit[], minBytes = 16): Uint8Array {
 /**
  * Privacy amplification: hash the raw key to eliminate Eve's partial info.
  * Uses SHA-256 via WebCrypto, truncated to desired output length.
- * Output length = floor(rawKey.length * (1 - qber * 2)) bits minimum 128.
+ * Output length = floor(rawKey.length * (1 - qber * 2)) bits minimum 256.
  */
 export async function privacyAmplification(rawKey: Bit[], qber: number): Promise<Uint8Array> {
-  const targetBits = Math.max(128, Math.floor(rawKey.length * (1 - qber * 2)));
+  const targetBits = Math.max(256, Math.floor(rawKey.length * (1 - qber * 2)));
   const targetBytes = Math.ceil(targetBits / 8);
   const keyMaterial = bitsToBytes(rawKey, 16);
   const digest = await crypto.subtle.digest('SHA-256', keyMaterial.buffer as ArrayBuffer);
@@ -101,19 +101,20 @@ export async function privacyAmplification(rawKey: Bit[], qber: number): Promise
 /**
  * Run the complete BB84 protocol simulation.
  */
-export function runBB84(
+export async function runBB84(
   nPhotons: number,
   evePresent: boolean,
   noiseRate: number,
   qberThreshold: number,
   sacrificeRate: number
-): BB84Result {
+): Promise<BB84Result> {
   const safeN = Math.max(1, Math.floor(nPhotons));
   const safeNoise = Math.min(1, Math.max(0, noiseRate));
   const safeThreshold = Math.min(1, Math.max(0, qberThreshold));
   const safeSacrifice = Math.min(1, Math.max(0, sacrificeRate));
 
-  const aliceRandom = randomBytes(safeN);
+  const aliceBitRandom = randomBytes(safeN);
+  const aliceBasisRandom = randomBytes(safeN);
   const bobRandom = randomBytes(safeN);
   const eveRandom = evePresent ? randomBytes(safeN) : new Uint8Array(safeN);
   const mismatchedOutcomeRandom = randomBytes(safeN);
@@ -123,8 +124,8 @@ export function runBB84(
   const photons: Photon[] = [];
 
   for (let i = 0; i < safeN; i += 1) {
-    const aliceBit = randomBitFromByte(aliceRandom[i]);
-    const aliceBasis = randomBasisFromByte(aliceRandom[i]);
+    const aliceBit = randomBitFromByte(aliceBitRandom[i]);
+    const aliceBasis = randomBasisFromByte(aliceBasisRandom[i]);
     let transmittedBit: Bit = aliceBit;
     let transmittedBasis: Basis = aliceBasis;
 
@@ -197,7 +198,7 @@ export function runBB84(
 
   const postSacrificeIndices = siftedIndices.slice(sacrificedCount);
   const rawFinalKey = postSacrificeIndices.map((idx) => photons[idx].bobBit);
-  const finalKey = bitsToBytes(rawFinalKey, 16);
+  const finalKey = await privacyAmplification(rawFinalKey, qber);
 
   return {
     photons,
@@ -208,6 +209,6 @@ export function runBB84(
     eveDetected,
     rawFinalKey,
     finalKey,
-    keyLengthBits: rawFinalKey.length,
+    keyLengthBits: finalKey.length * 8,
   };
 }

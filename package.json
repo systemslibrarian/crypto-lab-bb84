@@ -1,7 +1,8 @@
 {
   "name": "crypto-lab-bb84",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Browser-based BB84 Quantum Key Distribution simulation — photon polarization, basis sifting, QBER eavesdropper detection, privacy amplification, AES-256-GCM. Physics-based security. No backends.",
   "type": "module",
   "scripts": {
     "dev": "vite",

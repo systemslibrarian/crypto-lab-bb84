@@ -1,5 +1,5 @@
 import './style.css';
-import { runBB84, privacyAmplification } from './bb84';
+import { runBB84 } from './bb84';
 import type { Photon } from './bb84';
 import { encryptWithBB84Key, decryptWithBB84Key } from './encrypt';
 
@@ -99,6 +99,10 @@ function hexEncode(bytes: Uint8Array): string {
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -175,14 +179,6 @@ const PHOTON_TRAVEL_MS = 800;
 const BATCH_DELAY_MS = 100;
 const MAX_VISIBLE = 8;
 
-function polarizationAngle(p: Photon): number {
-  const pol = p.polarization;
-  if (pol === '0°') return 0;
-  if (pol === '90°') return 90;
-  if (pol === '45°') return 45;
-  return 135;
-}
-
 function photonColor(p: Photon): string {
   if (p.basesMatch && p.isError) return '#ff3366';
   if (p.basesMatch) return '#ffd700';
@@ -219,7 +215,20 @@ function animateSinglePhoton(p: Photon, delayMs: number, evePresent: boolean): P
       dot.setAttribute('cy', String(CHAN_Y));
 
       const line = document.createElementNS(ns, 'line');
-      const angle = polarizationAngle(p) * (Math.PI / 180);
+      // Compute Alice's ORIGINAL polarization (before Eve overwrites p.polarization)
+      const alicePol = p.aliceBit === 0
+        ? (p.aliceBasis === 'rectilinear' ? 0 : 45)
+        : (p.aliceBasis === 'rectilinear' ? 90 : 135);
+      const aliceAngle = alicePol * (Math.PI / 180);
+      // If Eve intercepted with a different basis, the resent photon has a different angle
+      let postEveAngle = aliceAngle;
+      if (evePresent && p.eveBasis && p.eveBasis !== p.aliceBasis) {
+        const evePol = p.eveBit === 0
+          ? (p.eveBasis === 'rectilinear' ? 0 : 45)
+          : (p.eveBasis === 'rectilinear' ? 90 : 135);
+        postEveAngle = evePol * (Math.PI / 180);
+      }
+      let currentAngle = aliceAngle;
       const len = 8;
       line.setAttribute('stroke', '#00d4ff');
       line.setAttribute('stroke-width', '2');
@@ -243,16 +252,19 @@ function animateSinglePhoton(p: Photon, delayMs: number, evePresent: boolean): P
             x = CHAN_X_START + (midX - CHAN_X_START) * (t / 0.45);
           } else if (t < 0.55) {
             x = midX;
+            // Switch to Eve's resent polarization angle at interception point
+            currentAngle = postEveAngle;
           } else {
             x = midX + (CHAN_X_END - midX) * ((t - 0.55) / 0.45);
+            currentAngle = postEveAngle;
           }
         } else {
           x = CHAN_X_START + (CHAN_X_END - CHAN_X_START) * t;
         }
 
         dot.setAttribute('cx', String(x));
-        const dx = len * Math.cos(angle);
-        const dy = len * Math.sin(angle);
+        const dx = len * Math.cos(currentAngle);
+        const dy = len * Math.sin(currentAngle);
         line.setAttribute('x1', String(x - dx));
         line.setAttribute('y1', String(CHAN_Y - dy));
         line.setAttribute('x2', String(x + dx));
@@ -316,7 +328,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
   if (pf1) pf1.style.width = '100%';
   await delay(400);
 
-  const result = runBB84(nPhotons, evePresent, noiseRate, qberThreshold, sacrificeRate);
+  const result = await runBB84(nPhotons, evePresent, noiseRate, qberThreshold, sacrificeRate);
 
   const recCount = result.photons.filter(p => p.aliceBasis === 'rectilinear').length;
   const diagCount = nPhotons - recCount;
@@ -371,7 +383,8 @@ async function runProtocol(evePresent: boolean): Promise<void> {
       `Threshold: ${threshPct}%\n` +
       `Status: ✗ EAVESDROPPER DETECTED — Abort. Key discarded.\n` +
       `Reason: QBER exceeds threshold. Eve introduced errors by\n` +
-      `        measuring photons in random bases.`
+      `        measuring photons in random bases.\n` +
+      `        (Eve's random basis choices cause ~25% QBER on full intercept)`
     );
     setStepState(4, 'error');
     updateCounters(nPhotons, siftedLen, errorCount, 0);
@@ -396,7 +409,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
   setStepContent(5, `Applying SHA-256 to raw key (${result.rawFinalKey.length} bits remaining after sacrifice)...`);
   await delay(200);
 
-  amplifiedKey = await privacyAmplification(result.rawFinalKey, result.qber);
+  amplifiedKey = result.finalKey;
   const keyHex = hexEncode(amplifiedKey);
 
   setStepContent(5,
@@ -407,11 +420,37 @@ async function runProtocol(evePresent: boolean): Promise<void> {
   updateCounters(nPhotons, siftedLen, errorCount, amplifiedKey.length * 8);
   await delay(200);
 
-  // Step 6 — ready for encryption
+  // Step 6 — Auto-encrypt with AES-256-GCM
   setStepState(6, 'active');
-  setStepContent(6, 'Ready to encrypt. Enter a message and press "Encrypt ▶".');
-  btnEncrypt.disabled = false;
+  const autoMessage = msgInput.value || 'Hello from BB84';
 
+  if (amplifiedKey.length < 32) {
+    setStepContent(6, 'Key too short for AES-256. Run with more photons.');
+    setStepState(6, 'error');
+    running = false;
+    setButtons(true);
+    return;
+  }
+
+  try {
+    const enc = await encryptWithBB84Key(amplifiedKey, autoMessage);
+    const dec = await decryptWithBB84Key(amplifiedKey, enc.ciphertext, enc.iv);
+
+    setStepContent(6,
+      `Message: "${escapeHtml(autoMessage)}"\n` +
+      `Key: ${keyHex.slice(0, 32)}...\n` +
+      `IV: ${enc.iv}\n` +
+      `Ciphertext: ${enc.ciphertext.slice(0, 40)}...\n` +
+      `Auth Tag: ${enc.authTag}\n` +
+      `✓ Decrypted: "${escapeHtml(dec)}"`
+    );
+    setStepState(6, 'done');
+  } catch (err) {
+    setStepContent(6, `Encryption failed: ${escapeHtml(String(err))}`);
+    setStepState(6, 'error');
+  }
+
+  btnEncrypt.disabled = false;
   running = false;
   setButtons(true);
 }
@@ -432,16 +471,16 @@ async function handleEncrypt(): Promise<void> {
     const dec = await decryptWithBB84Key(amplifiedKey, enc.ciphertext, enc.iv);
 
     setStepContent(6,
-      `Message: "${message}"\n` +
+      `Message: "${escapeHtml(message)}"\n` +
       `Key: ${hexEncode(amplifiedKey).slice(0, 32)}...\n` +
       `IV: ${enc.iv}\n` +
       `Ciphertext: ${enc.ciphertext.slice(0, 40)}...\n` +
       `Auth Tag: ${enc.authTag}\n` +
-      `✓ Decrypted: "${dec}"`
+      `✓ Decrypted: "${escapeHtml(dec)}"`
     );
     setStepState(6, 'done');
   } catch (err) {
-    setStepContent(6, `Encryption failed: ${err}`);
+    setStepContent(6, `Encryption failed: ${escapeHtml(String(err))}`);
     setStepState(6, 'error');
   }
 }

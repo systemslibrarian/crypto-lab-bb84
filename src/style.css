@@ -33,7 +33,7 @@
 [data-theme='light'] {
   --bg: #f0f4ff;
   --bg-panel: #ffffff;
-  --bg-channel: #e8ecf8;
+  --bg-channel: #f0f4ff;
   --text: #1a1a2e;
   --text-muted: #666688;
   --border: #ccccdd;
@@ -60,6 +60,25 @@ body {
   max-width: 1440px;
   margin: 0 auto;
   padding: 12px;
+}
+
+.sim-banner {
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 6px 12px;
+  background: #1a1a10;
+  border: 1px solid #554400;
+  border-radius: 4px;
+  color: #ffaa00;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+[data-theme='light'] .sim-banner {
+  background: #fff8e0;
+  border-color: #ccaa44;
+  color: #886600;
 }
 
 .controls {
