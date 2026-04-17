@@ -3,8 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <script>
-      const t = localStorage.getItem('cv-theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', t);
+      (function () {
+        const saved = localStorage.getItem('theme');
+        document.documentElement.setAttribute('data-theme', saved ?? 'dark');
+      })();
     </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -12,8 +14,10 @@
     <meta name="description" content="Browser-based simulation of the BB84 Quantum Key Distribution protocol. Physics-based security. No backends." />
   </head>
   <body>
-    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark/light theme">🌙</button>
     <div id="app">
+      <header class="site-header">
+        <button class="theme-toggle" id="theme-toggle" style="position: absolute; top: 0; right: 0" aria-label="Switch to light mode">🌙</button>
+      </header>
       <div class="sim-banner" role="status">SIMULATED — This demo simulates the BB84 protocol classically. No actual photons or quantum states are produced. Security claims assume a perfect implementation.</div>
       <!-- Controls -->
       <div class="controls" role="toolbar" aria-label="Simulation controls">

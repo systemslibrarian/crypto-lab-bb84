@@ -45,20 +45,21 @@ slNoise.addEventListener('input', () => { lblNoise.textContent = slNoise.value +
 slThreshold.addEventListener('input', () => { lblThreshold.textContent = slThreshold.value + '%'; });
 
 // ── Theme toggle ───────────────────────────────────────────
-function updateThemeIcon(): void {
-  const current = document.documentElement.getAttribute('data-theme');
-  themeToggle.textContent = current === 'dark' ? '🌙' : '☀️';
+function updateThemeButton(): void {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  themeToggle.textContent = isDark ? '🌙' : '☀️';
+  themeToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
 }
 
 themeToggle.addEventListener('click', () => {
   const current = document.documentElement.getAttribute('data-theme');
   const next = current === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('cv-theme', next);
-  updateThemeIcon();
+  localStorage.setItem('theme', next);
+  updateThemeButton();
 });
 
-updateThemeIcon();
+updateThemeButton();
 
 // ── Step accordion ─────────────────────────────────────────
 document.querySelectorAll('.step-header').forEach(header => {
