@@ -311,155 +311,159 @@ async function runProtocol(evePresent: boolean): Promise<void> {
   btnEncrypt.disabled = true;
   amplifiedKey = null;
 
-  // Reset steps
-  for (let i = 1; i <= 6; i++) {
-    setStepState(i, 'idle');
-    setStepContent(i, '');
-  }
-  updateCounters(0, 0, 0, 0);
-  setGauge(0);
-  setResultBanner('hidden');
+  try {
+    // Reset steps
+    for (let i = 1; i <= 6; i++) {
+      setStepState(i, 'idle');
+      setStepContent(i, '');
+    }
+    updateCounters(0, 0, 0, 0);
+    setGauge(0);
+    setResultBanner('hidden');
 
-  const nPhotons = parseInt(slPhotons.value, 10);
-  const noiseRate = parseFloat(slNoise.value) / 100;
-  const qberThreshold = parseFloat(slThreshold.value) / 100;
-  const sacrificeRate = 0.5;
+    const nPhotons = parseInt(slPhotons.value, 10);
+    const noiseRate = parseFloat(slNoise.value) / 100;
+    const qberThreshold = parseFloat(slThreshold.value) / 100;
+    const sacrificeRate = 0.5;
 
-  // Step 1 — Alice prepares
-  setStepState(1, 'active');
-  setStepContent(1, `Randomly choosing basis (⊕ or ⊗) and bit value for each photon...\n<div class="progress-bar"><div class="progress-fill" id="pf1"></div></div>`);
-  await delay(200);
-  const pf1 = document.getElementById('pf1');
-  if (pf1) pf1.style.width = '100%';
-  await delay(400);
+    // Step 1 — Alice prepares
+    setStepState(1, 'active');
+    setStepContent(1, `Randomly choosing basis (⊕ or ⊗) and bit value for each photon...\n<div class="progress-bar"><div class="progress-fill" id="pf1"></div></div>`);
+    await delay(200);
+    const pf1 = document.getElementById('pf1');
+    if (pf1) pf1.style.width = '100%';
+    await delay(400);
 
-  const result = await runBB84(nPhotons, evePresent, noiseRate, qberThreshold, sacrificeRate);
+    const result = await runBB84(nPhotons, evePresent, noiseRate, qberThreshold, sacrificeRate);
 
-  const recCount = result.photons.filter(p => p.aliceBasis === 'rectilinear').length;
-  const diagCount = nPhotons - recCount;
-  setStepContent(1, `${nPhotons} photons prepared. ${recCount} rectilinear (⊕), ${diagCount} diagonal (⊗).`);
-  setStepState(1, 'done');
+    const recCount = result.photons.filter(p => p.aliceBasis === 'rectilinear').length;
+    const diagCount = nPhotons - recCount;
+    setStepContent(1, `${nPhotons} photons prepared. ${recCount} rectilinear (⊕), ${diagCount} diagonal (⊗).`);
+    setStepState(1, 'done');
 
-  // Step 2 — Bob measures + animate
-  setStepState(2, 'active');
-  setStepContent(2, `Bob randomly selects measurement basis for each incoming photon...`);
+    // Step 2 — Bob measures + animate
+    setStepState(2, 'active');
+    setStepContent(2, `Bob randomly selects measurement basis for each incoming photon...`);
 
-  // Animate a sample of photons (max 64 for performance)
-  const sampleSize = Math.min(64, nPhotons);
-  const step = Math.max(1, Math.floor(nPhotons / sampleSize));
-  const samplePhotons = result.photons.filter((_, i) => i % step === 0).slice(0, sampleSize);
-  await animatePhotons(samplePhotons, evePresent);
+    // Animate a sample of photons (max 64 for performance)
+    const sampleSize = Math.min(64, nPhotons);
+    const step = Math.max(1, Math.floor(nPhotons / sampleSize));
+    const samplePhotons = result.photons.filter((_, i) => i % step === 0).slice(0, sampleSize);
+    await animatePhotons(samplePhotons, evePresent);
 
-  setStepContent(2, `${nPhotons} measurements complete.`);
-  setStepState(2, 'done');
-  updateCounters(nPhotons, 0, 0, 0);
+    setStepContent(2, `${nPhotons} measurements complete.`);
+    setStepState(2, 'done');
+    updateCounters(nPhotons, 0, 0, 0);
 
-  // Step 3 — Basis sifting
-  setStepState(3, 'active');
-  const aliceBases = result.photons.slice(0, 12).map(p => basisSymbol(p.aliceBasis)).join(',');
-  const bobBases = result.photons.slice(0, 12).map(p => basisSymbol(p.bobBasis)).join(',');
-  const siftedLen = result.siftedIndices.length;
-  const survivalPct = ((siftedLen / nPhotons) * 100).toFixed(1);
+    // Step 3 — Basis sifting
+    setStepState(3, 'active');
+    const aliceBases = result.photons.slice(0, 12).map(p => basisSymbol(p.aliceBasis)).join(',');
+    const bobBases = result.photons.slice(0, 12).map(p => basisSymbol(p.bobBasis)).join(',');
+    const siftedLen = result.siftedIndices.length;
+    const survivalPct = ((siftedLen / nPhotons) * 100).toFixed(1);
 
-  setStepContent(3,
-    `Alice announces: [${aliceBases},...]\nBob announces:   [${bobBases},...]\n` +
-    `Matching positions: ${result.siftedIndices.slice(0, 8).join(', ')}...\n` +
-    `Sifted key length: ${siftedLen} bits (${survivalPct}% survival rate)`
-  );
-  setStepState(3, 'done');
-  updateCounters(nPhotons, siftedLen, 0, 0);
-  await delay(300);
+    setStepContent(3,
+      `Alice announces: [${aliceBases},...]\nBob announces:   [${bobBases},...]\n` +
+      `Matching positions: ${result.siftedIndices.slice(0, 8).join(', ')}...\n` +
+      `Sifted key length: ${siftedLen} bits (${survivalPct}% survival rate)`
+    );
+    setStepState(3, 'done');
+    updateCounters(nPhotons, siftedLen, 0, 0);
+    await delay(300);
 
-  // Step 4 — Error estimation
-  setStepState(4, 'active');
-  const sacrificedCount = result.sacrificedBits;
-  const errorCount = result.photons.filter(p => p.sacrificed && p.isError).length;
-  const qberPct = (result.qber * 100).toFixed(2);
-  const threshPct = (qberThreshold * 100).toFixed(1);
+    // Step 4 — Error estimation
+    setStepState(4, 'active');
+    const sacrificedCount = result.sacrificedBits;
+    const errorCount = result.photons.filter(p => p.sacrificed && p.isError).length;
+    const qberPct = (result.qber * 100).toFixed(2);
+    const threshPct = (qberThreshold * 100).toFixed(1);
 
-  setGauge(result.qber);
-  await delay(500);
+    setGauge(result.qber);
+    await delay(500);
 
-  if (result.eveDetected) {
+    if (result.eveDetected) {
+      setStepContent(4,
+        `Sacrificing ${sacrificedCount} sifted bits for QBER check...\n` +
+        `Errors found: ${errorCount} of ${sacrificedCount} sacrificed bits\n` +
+        `QBER: ${qberPct}%\n` +
+        `Threshold: ${threshPct}%\n` +
+        `Status: ✗ EAVESDROPPER DETECTED — Abort. Key discarded.\n` +
+        `Reason: QBER exceeds threshold. Eve introduced errors by\n` +
+        `        measuring photons in random bases.\n` +
+        `        (Eve's random basis choices cause ~25% QBER on full intercept)`
+      );
+      setStepState(4, 'error');
+      setResultBanner('detected', `✗ EAVESDROPPER DETECTED — QBER ${qberPct}% exceeds ${threshPct}% threshold. Key discarded.`);
+      updateCounters(nPhotons, siftedLen, errorCount, 0);
+      return;
+    }
+
     setStepContent(4,
       `Sacrificing ${sacrificedCount} sifted bits for QBER check...\n` +
-      `Errors found: ${errorCount} of ${sacrificedCount} sacrificed bits\n` +
+      `Errors found: ${errorCount}\n` +
       `QBER: ${qberPct}%\n` +
       `Threshold: ${threshPct}%\n` +
-      `Status: ✗ EAVESDROPPER DETECTED — Abort. Key discarded.\n` +
-      `Reason: QBER exceeds threshold. Eve introduced errors by\n` +
-      `        measuring photons in random bases.\n` +
-      `        (Eve's random basis choices cause ~25% QBER on full intercept)`
+      `Status: ✓ CHANNEL CLEAN — No eavesdropper detected`
     );
-    setStepState(4, 'error');
-    setResultBanner('detected', `✗ EAVESDROPPER DETECTED — QBER ${qberPct}% exceeds ${threshPct}% threshold. Key discarded.`);
-    updateCounters(nPhotons, siftedLen, errorCount, 0);
-    running = false;
-    setButtons(true);
-    return;
-  }
+    setStepState(4, 'done');
+    setResultBanner('clean', `✓ CHANNEL CLEAN — QBER ${qberPct}% below ${threshPct}% threshold. Proceeding to key derivation.`);
+    updateCounters(nPhotons, siftedLen, errorCount, result.rawFinalKey.length);
+    await delay(300);
 
-  setStepContent(4,
-    `Sacrificing ${sacrificedCount} sifted bits for QBER check...\n` +
-    `Errors found: ${errorCount}\n` +
-    `QBER: ${qberPct}%\n` +
-    `Threshold: ${threshPct}%\n` +
-    `Status: ✓ CHANNEL CLEAN — No eavesdropper detected`
-  );
-  setStepState(4, 'done');
-  setResultBanner('clean', `✓ CHANNEL CLEAN — QBER ${qberPct}% below ${threshPct}% threshold. Proceeding to key derivation.`);
-  updateCounters(nPhotons, siftedLen, errorCount, result.rawFinalKey.length);
-  await delay(300);
+    // Step 5 — Privacy amplification
+    setStepState(5, 'active');
+    setStepContent(5, `Applying SHA-256 to raw key (${result.rawFinalKey.length} bits remaining after sacrifice)...`);
+    await delay(200);
 
-  // Step 5 — Privacy amplification
-  setStepState(5, 'active');
-  setStepContent(5, `Applying SHA-256 to raw key (${result.rawFinalKey.length} bits remaining after sacrifice)...`);
-  await delay(200);
+    amplifiedKey = result.finalKey;
+    const keyHex = hexEncode(amplifiedKey);
 
-  amplifiedKey = result.finalKey;
-  const keyHex = hexEncode(amplifiedKey);
-
-  setStepContent(5,
-    `Final key: ${amplifiedKey.length * 8} bits\n` +
-    `Key: ${keyHex.slice(0, 32)}...`
-  );
-  setStepState(5, 'done');
-  updateCounters(nPhotons, siftedLen, errorCount, amplifiedKey.length * 8);
-  await delay(200);
-
-  // Step 6 — Auto-encrypt with AES-256-GCM
-  setStepState(6, 'active');
-  const autoMessage = msgInput.value || 'Hello from BB84';
-
-  if (amplifiedKey.length < 32) {
-    setStepContent(6, 'Key too short for AES-256. Run with more photons.');
-    setStepState(6, 'error');
-    running = false;
-    setButtons(true);
-    return;
-  }
-
-  try {
-    const enc = await encryptWithBB84Key(amplifiedKey, autoMessage);
-    const dec = await decryptWithBB84Key(amplifiedKey, enc.ciphertext, enc.iv);
-
-    setStepContent(6,
-      `Message: "${escapeHtml(autoMessage)}"\n` +
-      `Key: ${keyHex.slice(0, 32)}...\n` +
-      `IV: ${enc.iv}\n` +
-      `Ciphertext: ${enc.ciphertext.slice(0, 40)}...\n` +
-      `Auth Tag: ${enc.authTag}\n` +
-      `✓ Decrypted: "${escapeHtml(dec)}"`
+    setStepContent(5,
+      `Final key: ${amplifiedKey.length * 8} bits\n` +
+      `Key: ${keyHex.slice(0, 32)}...`
     );
-    setStepState(6, 'done');
+    setStepState(5, 'done');
+    updateCounters(nPhotons, siftedLen, errorCount, amplifiedKey.length * 8);
+    await delay(200);
+
+    // Step 6 — Auto-encrypt with AES-256-GCM
+    setStepState(6, 'active');
+    const autoMessage = msgInput.value || 'Hello from BB84';
+
+    if (amplifiedKey.length < 32) {
+      setStepContent(6, 'Key too short for AES-256. Run with more photons.');
+      setStepState(6, 'error');
+      return;
+    }
+
+    try {
+      const enc = await encryptWithBB84Key(amplifiedKey, autoMessage);
+      const dec = await decryptWithBB84Key(amplifiedKey, enc.ciphertext, enc.iv);
+
+      setStepContent(6,
+        `Message: "${escapeHtml(autoMessage)}"\n` +
+        `Key: ${keyHex.slice(0, 32)}...\n` +
+        `IV: ${enc.iv}\n` +
+        `Ciphertext: ${enc.ciphertext.slice(0, 40)}...\n` +
+        `Auth Tag: ${enc.authTag}\n` +
+        `✓ Decrypted: "${escapeHtml(dec)}"`
+      );
+      setStepState(6, 'done');
+    } catch (err) {
+      setStepContent(6, `Encryption failed: ${escapeHtml(String(err))}`);
+      setStepState(6, 'error');
+    }
+
+    btnEncrypt.disabled = false;
   } catch (err) {
-    setStepContent(6, `Encryption failed: ${escapeHtml(String(err))}`);
-    setStepState(6, 'error');
+    // Any unexpected failure (e.g. WebCrypto unavailable) must not leave the
+    // UI permanently disabled — surface it and let the finally block recover.
+    console.error('BB84 run failed:', err);
+    setResultBanner('detected', `⚠ Unexpected error — ${escapeHtml(String(err))}`);
+  } finally {
+    running = false;
+    setButtons(true);
   }
-
-  btnEncrypt.disabled = false;
-  running = false;
-  setButtons(true);
 }
 
 // ── Encrypt handler ────────────────────────────────────────
@@ -471,7 +475,7 @@ async function handleEncrypt(): Promise<void> {
   }
 
   const message = msgInput.value || 'Hello from BB84';
-  setStepContent(6, `Encrypting: "${message}"...`);
+  setStepContent(6, `Encrypting: "${escapeHtml(message)}"...`);
 
   try {
     const enc = await encryptWithBB84Key(amplifiedKey, message);
