@@ -14,9 +14,24 @@ Browser-based simulation of the BB84 Quantum Key Distribution protocol (Bennett 
 
 ## Live Demo
 
-[https://systemslibrarian.github.io/crypto-lab-bb84/](https://systemslibrarian.github.io/crypto-lab-bb84/)
+**[systemslibrarian.github.io/crypto-lab-bb84](https://systemslibrarian.github.io/crypto-lab-bb84/)**
 
 Run the BB84 protocol with or without an eavesdropper (Eve) and watch photons animate through the quantum channel in real time. Adjust the number of photons (64–512), channel noise rate, and QBER detection threshold with sliders. After key exchange completes, the demo automatically encrypts and decrypts a user-supplied message with AES-256-GCM using the BB84-derived key.
+
+## What Can Go Wrong
+
+- **Unauthenticated classical channel:** BB84 needs an authenticated public channel for basis reconciliation; without authentication an active attacker can mount a man-in-the-middle on the sifting step.
+- **Channel noise vs. eavesdropping:** real QBER mixes natural noise with any eavesdropping, so the detection threshold trades false alarms against missed detection.
+- **Hardware side channels:** real photon sources leak — multi-photon pulses enable photon-number-splitting attacks, and detector-blinding attacks have broken deployed QKD links.
+- **Classical post-processing still matters:** error correction and privacy amplification must be done correctly, or the final key is not secret even when the QBER looks fine.
+- **This is a classical simulation:** it models the protocol with a CSPRNG, not real quantum states, so it cannot provide the physical security guarantees of true QKD hardware.
+
+## Real-World Usage
+
+- Commercial QKD systems are sold by vendors such as ID Quantique and Toshiba for point-to-point fiber links.
+- Metropolitan QKD testbed networks have been deployed to connect data centers and government sites.
+- Satellite QKD has been demonstrated, most notably by China's Micius satellite for long-distance key distribution.
+- QKD is positioned as a niche complement to — not a replacement for — post-quantum cryptography, since it requires dedicated hardware and an authenticated channel.
 
 ## How to Run Locally
 
@@ -27,12 +42,15 @@ npm install
 npm run dev
 ```
 
-## Part of the Crypto-Lab Suite
+## Related Demos
 
-> One of 60+ live browser demos at
-> [systemslibrarian.github.io/crypto-lab](https://systemslibrarian.github.io/crypto-lab/)
-> — spanning Atbash (600 BCE) through NIST FIPS 203/204/205 (2024).
+- [crypto-lab-e91](https://systemslibrarian.github.io/crypto-lab-e91/) — entanglement-based QKD with a CHSH/Bell test.
+- [crypto-lab-shor](https://systemslibrarian.github.io/crypto-lab-shor/) — the quantum algorithm that motivates post-quantum migration.
+- [crypto-lab-key-exchange](https://systemslibrarian.github.io/crypto-lab-key-exchange/) — classical Diffie–Hellman/ECDH and ML-KEM key agreement.
+- [crypto-lab-kyber-vault](https://systemslibrarian.github.io/crypto-lab-kyber-vault/) — ML-KEM, the computational post-quantum KEM.
 
 ---
 
-*"Whether you eat or drink, or whatever you do, do all to the glory of God." — 1 Corinthians 10:31*
+*One of 60+ browser demos in the [Crypto Lab](https://crypto-lab.systemslibrarian.dev/) suite.*
+
+*"So whether you eat or drink or whatever you do, do it all for the glory of God." — 1 Corinthians 10:31*
