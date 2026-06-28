@@ -551,23 +551,12 @@ body {
   margin-top: 2rem;
 }
 
-/* ── Static channel diagram (reduced motion) ────────────── */
-.static-channel {
-  display: none;
-  padding: 24px;
-  text-align: center;
-  font-family: 'Courier New', monospace;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  line-height: 2;
-}
-
+/* Reduced motion: the JS skips the photon animation entirely, so the channel
+   panel shows its static SVG diagram (fiber + Alice/Bob). This rule is a
+   defensive guard ensuring no photon dot is ever painted in that mode. */
 @media (prefers-reduced-motion: reduce) {
   .panel-channel svg .photon-group {
     display: none !important;
-  }
-  .static-channel {
-    display: block;
   }
 }
 

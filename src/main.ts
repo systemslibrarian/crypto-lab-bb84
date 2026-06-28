@@ -129,7 +129,7 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function setGauge(qber: number): void {
+function setGauge(qber: number, threshold = 0.11): void {
   // Map 0-0.5 to angle 180° (left) to 0° (right)
   const clamped = Math.min(0.5, Math.max(0, qber));
   const angle = Math.PI - (clamped / 0.5) * Math.PI;
@@ -143,10 +143,13 @@ function setGauge(qber: number): void {
   gaugeLabel.textContent = pct + '%';
   gaugeSvg.setAttribute('aria-label', `QBER gauge: ${pct} percent`);
 
-  // Pull status colors from CSS so they track the active theme.
+  // Color the needle/value against the SAME threshold the run uses, so the
+  // gauge never contradicts the result banner: red once QBER crosses the
+  // threshold (detected), amber as it approaches, green when comfortably clear.
+  // Colors come from CSS so they track the active theme.
   let color = cssVar('--gauge-green') || '#00ff88';
-  if (clamped > 0.25) color = cssVar('--gauge-red') || '#ff3366';
-  else if (clamped > 0.11) color = cssVar('--gauge-amber') || '#ffaa00';
+  if (clamped > threshold) color = cssVar('--gauge-red') || '#ff3366';
+  else if (clamped > threshold * 0.6) color = cssVar('--gauge-amber') || '#ffaa00';
   gaugeNeedle.setAttribute('stroke', color);
   gaugeLabel.setAttribute('fill', color);
 }
@@ -378,7 +381,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     const qberPct = (result.qber * 100).toFixed(2);
     const threshPct = (qberThreshold * 100).toFixed(1);
 
-    setGauge(result.qber);
+    setGauge(result.qber, qberThreshold);
     await delay(500);
 
     if (result.eveDetected) {
