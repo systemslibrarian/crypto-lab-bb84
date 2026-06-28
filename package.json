@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "node --import tsx --test src/bb84.test.ts",
     "preview": "vite preview",
     "deploy": "npm run build && gh-pages -d dist"
   },

@@ -39,7 +39,9 @@ Run the BB84 protocol with or without an eavesdropper (Eve) and watch photons an
 git clone https://github.com/systemslibrarian/crypto-lab-bb84
 cd crypto-lab-bb84
 npm install
-npm run dev
+npm run dev      # start the dev server
+npm test         # run the protocol + crypto unit tests
+npm run build    # type-check and produce a production build
 ```
 
 ## Related Demos

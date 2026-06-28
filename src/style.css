@@ -24,6 +24,7 @@
   --gauge-green: #00ff88;
   --gauge-amber: #ffaa00;
   --gauge-red: #ff3366;
+  --gauge-ink: #e0e0f0;
   --btn-bg: #1a1a3a;
   --btn-hover: #2a2a5a;
   --input-bg: #0e0e24;
@@ -35,12 +36,23 @@
   --bg-panel: #ffffff;
   --bg-channel: #f0f4ff;
   --text: #1a1a2e;
-  --text-muted: #666688;
+  --text-muted: #555577;
   --border: #ccccdd;
   --btn-bg: #dde0f0;
   --btn-hover: #c0c4e0;
   --input-bg: #f4f6ff;
   --scroll-thumb: #aaaacc;
+  /* Neon accents fail WCAG contrast on white surfaces, so the light theme
+     uses darker shades for any accent that carries TEXT or borders. The
+     always-dark channel keeps its own bright hardcoded colors. */
+  --alice: #0a6e87;
+  --eve: #c5283d;
+  --safe: #0f7a4d;
+  /* Gauge ticks/needle/value ink and status colors on the light panel. */
+  --gauge-green: #0f7a4d;
+  --gauge-amber: #9a6100;
+  --gauge-red: #c5283d;
+  --gauge-ink: #1a1a2e;
 }
 
 html {
@@ -60,6 +72,34 @@ body {
   max-width: 1440px;
   margin: 0 auto;
   padding: 12px;
+}
+
+/* The skip link moves focus here; the visible H1/heading provides context so
+   no focus ring is needed on the container itself. */
+#app:focus {
+  outline: none;
+}
+
+/* Visually hidden but available to assistive tech (headings, table caption). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Consistent, visible keyboard focus for all interactive controls. */
+.controls button:focus-visible,
+.controls input[type='range']:focus-visible,
+.message-row button:focus-visible,
+.message-row input[type='text']:focus-visible {
+  outline: 2px solid var(--alice);
+  outline-offset: 2px;
 }
 
 .sim-banner {
@@ -179,7 +219,10 @@ body {
 .panel-channel {
   width: 100%;
   height: 280px;
-  background: var(--bg-channel);
+  /* The quantum channel keeps a dark backdrop in both themes so the neon
+     photon/polarization colors stay vivid and high-contrast (matching the
+     always-dark shared header bar). */
+  background: #080818;
   border: 1px solid var(--border);
   border-radius: 8px;
   position: relative;
@@ -209,6 +252,70 @@ body {
 
 .channel-counters span {
   white-space: nowrap;
+}
+
+/* ── Channel legend ─────────────────────────────────────── */
+.channel-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  padding: 0 4px 4px;
+  margin: -4px 0 12px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.channel-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.channel-legend .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.channel-legend .dot-key { background: var(--matched); }
+.channel-legend .dot-err { background: var(--error-bit); }
+.channel-legend .dot-discard { background: #666; }
+.channel-legend .dot-eve { background: var(--eve); }
+
+.channel-legend .legend-basis {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ── Result banner ──────────────────────────────────────── */
+.result-banner {
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-align: center;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin: 4px 0 12px;
+  border: 1px solid transparent;
+}
+
+.result-banner[hidden] { display: none; }
+
+.result-banner.clean {
+  color: var(--safe);
+  border-color: var(--safe);
+  background: color-mix(in srgb, var(--safe) 12%, transparent);
+}
+
+.result-banner.detected {
+  color: var(--eve);
+  border-color: var(--eve);
+  background: color-mix(in srgb, var(--eve) 12%, transparent);
 }
 
 /* ── Bottom Grid ────────────────────────────────────────── */
@@ -332,6 +439,14 @@ body {
   height: 110px;
 }
 
+/* Gauge needle, pivot and tick labels follow the theme so the gauge stays
+   legible on the light panel (the near-white default ink is invisible there).
+   JS overrides the needle/value color to the live QBER status color. */
+#gauge-needle { stroke: var(--gauge-ink); }
+.gauge-pivot { fill: var(--gauge-ink); }
+.gauge-tick { fill: var(--text-muted); }
+#gauge-label { fill: var(--gauge-ink); }
+
 .comparison-table {
   width: 100%;
   border-collapse: collapse;
@@ -352,10 +467,11 @@ body {
   font-weight: 600;
 }
 
-.row-red td { color: var(--eve); }
-.row-amber td { color: var(--gauge-amber); }
-.row-green td { color: var(--safe); }
-.row-cyan td { color: var(--alice); }
+/* Row colors apply to both the row-header (th) and data cells. */
+.row-red td, .row-red th { color: var(--eve); }
+.row-amber td, .row-amber th { color: var(--gauge-amber); }
+.row-green td, .row-green th { color: var(--safe); }
+.row-cyan td, .row-cyan th { color: var(--alice); }
 
 .explainer {
   border: 1px solid var(--border);
@@ -425,33 +541,6 @@ body {
   white-space: pre-wrap;
 }
 
-/* ── Site Header ─────────────────────────────────────────────── */
-.site-header {
-  position: relative;
-  min-height: 2.6rem;
-}
-
-/* ── Theme Toggle ───────────────────────────────────────────── */
-.theme-toggle {
-  z-index: 10;
-  font-size: 1.3rem;
-  background: var(--btn-bg);
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  width: 2.6rem;
-  height: 2.6rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--text);
-  line-height: 1;
-}
-
-.theme-toggle:hover {
-  background: var(--btn-hover);
-}
-
 /* ── Footer ─────────────────────────────────────────────── */
 .scripture-footer {
   text-align: center;
@@ -482,7 +571,7 @@ body {
   }
 }
 
-/* ── Mobile (320px) ─────────────────────────────────────── */
+/* ── Mobile (down to 320px) ─────────────────────────────── */
 @media (max-width: 767px) {
   .panel-channel {
     height: 180px;
@@ -497,7 +586,43 @@ body {
     align-items: stretch;
   }
 
+  /* Comfortable touch targets (WCAG 2.5.5). */
+  .controls button {
+    min-height: 44px;
+  }
+
   .slider-group input[type='range'] {
     width: 100%;
+  }
+
+  /* Stack the message row so the input/button fill the width instead of a
+     fixed 260px that can overflow a 320px viewport. */
+  .message-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .message-row input[type='text'] {
+    width: 100%;
+  }
+
+  .message-row button {
+    min-height: 44px;
+  }
+
+  /* Larger tap area for the collapsible protocol-step headers. */
+  .step-header,
+  .explainer-header {
+    padding: 12px;
+  }
+
+  /* Keep the comparison table from forcing horizontal overflow. */
+  .comparison-table {
+    font-size: 0.7rem;
+  }
+
+  .comparison-table th,
+  .comparison-table td {
+    padding: 6px 5px;
   }
 }

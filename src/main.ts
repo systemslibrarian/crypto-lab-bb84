@@ -28,12 +28,12 @@ const cntErrors   = $('cnt-errors');
 const cntErrorPct = $('cnt-error-pct');
 const cntKey      = $('cnt-key');
 
+const resultBanner = $<HTMLDivElement>('result-banner');
 const photonGroup = $<SVGGElement>('photon-group');
 const eveNode     = $<SVGGElement>('eve-node');
+const gaugeSvg    = $<SVGSVGElement>('gauge-svg');
 const gaugeNeedle = $<SVGLineElement>('gauge-needle');
 const gaugeLabel  = $<SVGTextElement>('gauge-label');
-
-const themeToggle = $<HTMLButtonElement>('theme-toggle');
 
 // ── State ──────────────────────────────────────────────────
 let running = false;
@@ -44,22 +44,8 @@ slPhotons.addEventListener('input', () => { lblPhotons.textContent = slPhotons.v
 slNoise.addEventListener('input', () => { lblNoise.textContent = slNoise.value + '%'; });
 slThreshold.addEventListener('input', () => { lblThreshold.textContent = slThreshold.value + '%'; });
 
-// ── Theme toggle ───────────────────────────────────────────
-function updateThemeButton(): void {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  themeToggle.textContent = isDark ? '🌙' : '☀️';
-  themeToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
-}
-
-themeToggle.addEventListener('click', () => {
-  const current = document.documentElement.getAttribute('data-theme');
-  const next = current === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('theme', next);
-  updateThemeButton();
-});
-
-updateThemeButton();
+// Theme toggling is owned by the shared Crypto Lab header (#cl-theme-toggle),
+// which sets data-theme and persists it. No in-page toggle is needed.
 
 // ── Step accordion ─────────────────────────────────────────
 document.querySelectorAll('.step-header').forEach(header => {
@@ -139,6 +125,10 @@ function updateCounters(sent: number, sifted: number, errors: number, keyBits: n
   cntKey.textContent = String(keyBits);
 }
 
+function cssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
 function setGauge(qber: number): void {
   // Map 0-0.5 to angle 180° (left) to 0° (right)
   const clamped = Math.min(0.5, Math.max(0, qber));
@@ -151,13 +141,26 @@ function setGauge(qber: number): void {
 
   const pct = (clamped * 100).toFixed(1);
   gaugeLabel.textContent = pct + '%';
-  gaugeLabel.setAttribute('aria-label', `QBER gauge showing ${pct} percent`);
+  gaugeSvg.setAttribute('aria-label', `QBER gauge: ${pct} percent`);
 
-  let color = '#00ff88';
-  if (clamped > 0.25) color = '#ff3366';
-  else if (clamped > 0.11) color = '#ffaa00';
+  // Pull status colors from CSS so they track the active theme.
+  let color = cssVar('--gauge-green') || '#00ff88';
+  if (clamped > 0.25) color = cssVar('--gauge-red') || '#ff3366';
+  else if (clamped > 0.11) color = cssVar('--gauge-amber') || '#ffaa00';
   gaugeNeedle.setAttribute('stroke', color);
   gaugeLabel.setAttribute('fill', color);
+}
+
+function setResultBanner(state: 'clean' | 'detected' | 'hidden', text = ''): void {
+  resultBanner.classList.remove('clean', 'detected');
+  if (state === 'hidden') {
+    resultBanner.hidden = true;
+    resultBanner.textContent = '';
+    return;
+  }
+  resultBanner.hidden = false;
+  resultBanner.classList.add(state);
+  resultBanner.textContent = text;
 }
 
 function clearPhotons(): void {
@@ -315,6 +318,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
   }
   updateCounters(0, 0, 0, 0);
   setGauge(0);
+  setResultBanner('hidden');
 
   const nPhotons = parseInt(slPhotons.value, 10);
   const noiseRate = parseFloat(slNoise.value) / 100;
@@ -388,6 +392,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
       `        (Eve's random basis choices cause ~25% QBER on full intercept)`
     );
     setStepState(4, 'error');
+    setResultBanner('detected', `✗ EAVESDROPPER DETECTED — QBER ${qberPct}% exceeds ${threshPct}% threshold. Key discarded.`);
     updateCounters(nPhotons, siftedLen, errorCount, 0);
     running = false;
     setButtons(true);
@@ -402,6 +407,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     `Status: ✓ CHANNEL CLEAN — No eavesdropper detected`
   );
   setStepState(4, 'done');
+  setResultBanner('clean', `✓ CHANNEL CLEAN — QBER ${qberPct}% below ${threshPct}% threshold. Proceeding to key derivation.`);
   updateCounters(nPhotons, siftedLen, errorCount, result.rawFinalKey.length);
   await delay(300);
 
@@ -502,6 +508,7 @@ function resetAll(): void {
 
   updateCounters(0, 0, 0, 0);
   setGauge(0);
+  setResultBanner('hidden');
   clearPhotons();
   eveNode.style.display = 'none';
 }

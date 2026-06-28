@@ -131,10 +131,8 @@
   })();
 </script>
 <!-- END crypto-lab shared header -->
-    <div id="app">
-      <header class="site-header">
-        <button class="theme-toggle" id="theme-toggle" style="position: absolute; top: 0; right: 0" aria-label="Switch to light mode">🌙</button>
-      </header>
+    <main id="app" role="main" tabindex="-1" aria-label="BB84 Quantum Key Distribution simulator">
+      <h1 class="sr-only">BB84 Quantum Key Distribution Simulator</h1>
       <div class="sim-banner" role="status">SIMULATED — This demo simulates the BB84 protocol classically. No actual photons or quantum states are produced. Security claims assume a perfect implementation.</div>
       <!-- Controls -->
       <div class="controls" role="toolbar" aria-label="Simulation controls">
@@ -142,16 +140,16 @@
         <button id="btn-run-eve" class="btn-eve">▶ Run With Eve</button>
         <button id="btn-reset" class="btn-reset">Reset</button>
         <div class="slider-group">
-          <label>Photons: <span id="lbl-photons">256</span></label>
+          <label for="sl-photons">Photons: <span id="lbl-photons">256</span></label>
           <input type="range" id="sl-photons" min="64" max="512" value="256" step="8" aria-label="Number of photons" />
         </div>
         <div class="slider-group">
-          <label>Noise: <span id="lbl-noise">1%</span></label>
-          <input type="range" id="sl-noise" min="0" max="5" value="1" step="0.5" aria-label="Channel noise rate percent" />
+          <label for="sl-noise">Noise: <span id="lbl-noise">1%</span></label>
+          <input type="range" id="sl-noise" min="0" max="5" value="1" step="0.5" aria-label="Channel noise rate, percent" />
         </div>
         <div class="slider-group">
-          <label>QBER threshold: <span id="lbl-threshold">11%</span></label>
-          <input type="range" id="sl-threshold" min="5" max="20" value="11" step="1" aria-label="QBER threshold percent" />
+          <label for="sl-threshold">QBER threshold: <span id="lbl-threshold">11%</span></label>
+          <input type="range" id="sl-threshold" min="5" max="20" value="11" step="1" aria-label="QBER detection threshold, percent" />
         </div>
       </div>
 
@@ -160,6 +158,9 @@
         <input type="text" id="msg-input" value="Hello from BB84" aria-label="Message to encrypt" maxlength="200" />
         <button id="btn-encrypt" disabled>Encrypt ▶</button>
       </div>
+
+      <!-- Run outcome -->
+      <div id="result-banner" class="result-banner" role="status" aria-live="polite" hidden></div>
 
       <!-- Panel A: Quantum Channel -->
       <div class="panel-channel" role="img" aria-label="Quantum channel animation showing photons traveling from Alice to Bob">
@@ -192,78 +193,88 @@
         <span>Key bits: <strong id="cnt-key">0</strong></span>
       </div>
 
+      <!-- Legend -->
+      <div class="channel-legend" aria-label="Photon legend">
+        <span><i class="dot dot-key"></i> Key bit — bases matched</span>
+        <span><i class="dot dot-err"></i> Error — noise or Eve</span>
+        <span><i class="dot dot-discard"></i> Discarded — bases differ</span>
+        <span><i class="dot dot-eve"></i> Eve intercept</span>
+        <span class="legend-basis">⊕ rectilinear &middot; ⊗ diagonal</span>
+      </div>
+
       <!-- Bottom grid -->
       <div class="bottom-grid">
         <!-- Panel B: Protocol Steps -->
         <div class="panel" id="panel-steps">
-          <div class="panel-header">BB84 PROTOCOL</div>
+          <h2 class="panel-header">BB84 PROTOCOL</h2>
           <div class="step" id="step-1" data-step="1">
-            <div class="step-header" tabindex="0" role="button" aria-expanded="false"><span class="step-arrow">▶</span> Step 1 — Alice Prepares Photons</div>
+            <div class="step-header" tabindex="0" role="button" aria-expanded="false" aria-controls="step-1-body"><span class="step-arrow">▶</span> Step 1 — Alice Prepares Photons</div>
             <div class="step-body" id="step-1-body"></div>
           </div>
           <div class="step" id="step-2" data-step="2">
-            <div class="step-header" tabindex="0" role="button" aria-expanded="false"><span class="step-arrow">▶</span> Step 2 — Bob Measures</div>
+            <div class="step-header" tabindex="0" role="button" aria-expanded="false" aria-controls="step-2-body"><span class="step-arrow">▶</span> Step 2 — Bob Measures</div>
             <div class="step-body" id="step-2-body"></div>
           </div>
           <div class="step" id="step-3" data-step="3">
-            <div class="step-header" tabindex="0" role="button" aria-expanded="false"><span class="step-arrow">▶</span> Step 3 — Basis Sifting (Public Channel)</div>
+            <div class="step-header" tabindex="0" role="button" aria-expanded="false" aria-controls="step-3-body"><span class="step-arrow">▶</span> Step 3 — Basis Sifting (Public Channel)</div>
             <div class="step-body" id="step-3-body"></div>
           </div>
           <div class="step" id="step-4" data-step="4">
-            <div class="step-header" tabindex="0" role="button" aria-expanded="false"><span class="step-arrow">▶</span> Step 4 — Error Estimation</div>
+            <div class="step-header" tabindex="0" role="button" aria-expanded="false" aria-controls="step-4-body"><span class="step-arrow">▶</span> Step 4 — Error Estimation</div>
             <div class="step-body" id="step-4-body"></div>
           </div>
           <div class="step" id="step-5" data-step="5">
-            <div class="step-header" tabindex="0" role="button" aria-expanded="false"><span class="step-arrow">▶</span> Step 5 — Privacy Amplification</div>
+            <div class="step-header" tabindex="0" role="button" aria-expanded="false" aria-controls="step-5-body"><span class="step-arrow">▶</span> Step 5 — Privacy Amplification</div>
             <div class="step-body" id="step-5-body"></div>
           </div>
           <div class="step" id="step-6" data-step="6">
-            <div class="step-header" tabindex="0" role="button" aria-expanded="false"><span class="step-arrow">▶</span> Step 6 — Encrypt with AES-256-GCM</div>
+            <div class="step-header" tabindex="0" role="button" aria-expanded="false" aria-controls="step-6-body"><span class="step-arrow">▶</span> Step 6 — Encrypt with AES-256-GCM</div>
             <div class="step-body" id="step-6-body"></div>
           </div>
         </div>
 
         <!-- Panel C: Security Analysis -->
         <div class="panel" id="panel-security">
-          <div class="panel-header">SECURITY ANALYSIS</div>
+          <h2 class="panel-header">SECURITY ANALYSIS</h2>
 
           <!-- QBER Gauge -->
           <div class="qber-gauge">
-            <svg id="gauge-svg" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+            <svg id="gauge-svg" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QBER gauge: 0 percent">
               <!-- Background arcs -->
               <path d="M 20 100 A 80 80 0 0 1 100 20" fill="none" stroke="#00ff88" stroke-width="10" opacity="0.3"/>
               <path d="M 100 20 A 80 80 0 0 1 145 35" fill="none" stroke="#ffaa00" stroke-width="10" opacity="0.3"/>
               <path d="M 145 35 A 80 80 0 0 1 180 100" fill="none" stroke="#ff3366" stroke-width="10" opacity="0.3"/>
               <!-- Needle -->
-              <line id="gauge-needle" x1="100" y1="100" x2="20" y2="100" stroke="#e0e0f0" stroke-width="2" stroke-linecap="round"/>
-              <circle cx="100" cy="100" r="4" fill="#e0e0f0"/>
+              <line id="gauge-needle" x1="100" y1="100" x2="20" y2="100" stroke-width="2" stroke-linecap="round"/>
+              <circle class="gauge-pivot" cx="100" cy="100" r="4"/>
               <!-- Labels -->
-              <text x="15" y="115" fill="#8888aa" font-size="9" font-family="Courier New,monospace">0%</text>
-              <text x="175" y="115" fill="#8888aa" font-size="9" font-family="Courier New,monospace">50%</text>
-              <text id="gauge-label" x="100" y="90" text-anchor="middle" fill="#e0e0f0" font-size="14" font-family="Courier New,monospace" font-weight="bold" aria-label="QBER gauge showing 0 percent">—</text>
+              <text class="gauge-tick" x="15" y="115" font-size="9" font-family="Courier New,monospace">0%</text>
+              <text class="gauge-tick" x="175" y="115" font-size="9" font-family="Courier New,monospace">50%</text>
+              <text id="gauge-label" x="100" y="90" text-anchor="middle" font-size="14" font-family="Courier New,monospace" font-weight="bold" aria-hidden="true">—</text>
             </svg>
           </div>
 
           <!-- Comparison table -->
           <table class="comparison-table">
+            <caption class="sr-only">How a large quantum computer affects common cryptographic schemes compared with BB84.</caption>
             <thead>
-              <tr><th>Security Type</th><th>Basis</th><th>Quantum computer breaks it?</th></tr>
+              <tr><th scope="col">Security Type</th><th scope="col">Basis</th><th scope="col">Quantum computer breaks it?</th></tr>
             </thead>
             <tbody>
-              <tr class="row-red"><td>RSA-2048</td><td>Factoring</td><td>YES — Shor's algorithm</td></tr>
-              <tr class="row-red"><td>ECDSA P-256</td><td>Discrete log</td><td>YES — Shor's algorithm</td></tr>
-              <tr class="row-amber"><td>AES-256</td><td>Brute force</td><td>REDUCED — Grover (128-bit eff.)</td></tr>
-              <tr class="row-green"><td>ML-KEM (Kyber)</td><td>Lattice</td><td>BELIEVED NO — unproven</td></tr>
-              <tr class="row-cyan"><td>BB84 QKD</td><td>Physics</td><td>NO — information-theoretic</td></tr>
+              <tr class="row-red"><th scope="row">RSA-2048</th><td>Factoring</td><td>YES — Shor's algorithm</td></tr>
+              <tr class="row-red"><th scope="row">ECDSA P-256</th><td>Discrete log</td><td>YES — Shor's algorithm</td></tr>
+              <tr class="row-amber"><th scope="row">AES-256</th><td>Brute force</td><td>REDUCED — Grover (128-bit eff.)</td></tr>
+              <tr class="row-green"><th scope="row">ML-KEM (Kyber)</th><td>Lattice</td><td>BELIEVED NO — unproven</td></tr>
+              <tr class="row-cyan"><th scope="row">BB84 QKD</th><td>Physics</td><td>NO — information-theoretic</td></tr>
             </tbody>
           </table>
 
           <!-- No-cloning explainer -->
           <div class="explainer" id="explainer-cloning">
-            <div class="explainer-header" tabindex="0" role="button" aria-expanded="false">
+            <div class="explainer-header" tabindex="0" role="button" aria-expanded="false" aria-controls="explainer-cloning-body">
               <span class="explainer-arrow">▶</span> WHY EVE CANNOT HIDE
             </div>
-            <div class="explainer-body">The no-cloning theorem (Wootters &amp; Zurek, 1982) states that an unknown quantum state cannot be perfectly copied without disturbing the original.
+            <div class="explainer-body" id="explainer-cloning-body">The no-cloning theorem (Wootters &amp; Zurek, 1982) states that an unknown quantum state cannot be perfectly copied without disturbing the original.
 
 Eve's only option: measure the photon and resend a new one.
 But she does not know Alice's basis. If she guesses wrong:
@@ -278,7 +289,7 @@ The security is guaranteed by physics, not by computation.</div>
 
           <!-- Limitations -->
           <div class="info-block">
-            <div class="info-block-title">REAL-WORLD LIMITATIONS</div>
+            <h3 class="info-block-title">REAL-WORLD LIMITATIONS</h3>
             <div class="info-block-body">✗ Distance: ~100km max in fiber without quantum repeaters
 ✗ Infrastructure: requires single-photon sources and detectors
 ✗ Key distribution only: does not provide authentication or signatures
@@ -296,16 +307,14 @@ PQC for most infrastructure, QKD for highest-value point-to-point links.</div>
 
           <!-- Deployment -->
           <div class="info-block">
-            <div class="info-block-title">DEPLOYED QKD NETWORKS (2026)</div>
+            <h3 class="info-block-title">DEPLOYED QKD NETWORKS (2026)</h3>
             <div class="info-block-body">China:  2,000km Beijing–Shanghai ground network + Micius satellite
 Europe: EuroQCI linking EU member states (in deployment)
 Asia:   Metropolitan networks in South Korea, Japan, Singapore</div>
           </div>
         </div>
       </div>
-
-      </div>
-    </div>
+    </main>
     <footer class="scripture-footer">
       <p class="footer-links">Related demos: <a href="https://systemslibrarian.github.io/crypto-lab-e91/" target="_blank" rel="noopener noreferrer">entanglement-based QKD with a CHSH/Bell test</a> · <a href="https://systemslibrarian.github.io/crypto-lab-shor/" target="_blank" rel="noopener noreferrer">the quantum algorithm that motivates post-quantum migration</a> · <a href="https://systemslibrarian.github.io/crypto-lab-key-exchange/" target="_blank" rel="noopener noreferrer">classical Diffie–Hellman/ECDH and ML-KEM key agreement</a> · <a href="https://systemslibrarian.github.io/crypto-lab-kyber-vault/" target="_blank" rel="noopener noreferrer">ML-KEM, the computational post-quantum KEM</a></p>
       <p>So whether you eat or drink or whatever you do, do it all for the glory of God. — 1 Corinthians 10:31</p>

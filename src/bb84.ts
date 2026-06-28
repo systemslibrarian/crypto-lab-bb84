@@ -76,24 +76,38 @@ function bitsToBytes(bits: Bit[], minBytes = 16): Uint8Array {
 }
 
 /**
- * Privacy amplification: hash the raw key to eliminate Eve's partial info.
- * Uses SHA-256 via WebCrypto, truncated to desired output length.
- * Output length = floor(rawKey.length * (1 - qber * 2)) bits minimum 256.
+ * Privacy amplification: compress the raw key with a cryptographic hash to
+ * squeeze out the partial information an eavesdropper may hold.
+ *
+ * The target length models the secret-key rate: starting from the raw key we
+ * subtract a leakage term that grows with the QBER (a simplified ~2·QBER
+ * fraction standing in for error-correction + privacy-amplification leakage),
+ * with a 256-bit floor so the output can key AES-256.
+ *
+ * Output is derived by SHA-256 in counter mode (H(0‖m) ‖ H(1‖m) ‖ …) so that
+ * keys longer than one digest are still pseudo-random rather than a repeated
+ * 32-byte block. For the photon counts used here the result is the single
+ * 256-bit digest.
  */
 export async function privacyAmplification(rawKey: Bit[], qber: number): Promise<Uint8Array> {
   const targetBits = Math.max(256, Math.floor(rawKey.length * (1 - qber * 2)));
   const targetBytes = Math.ceil(targetBits / 8);
   const keyMaterial = bitsToBytes(rawKey, 16);
-  const digest = await crypto.subtle.digest('SHA-256', keyMaterial.buffer as ArrayBuffer);
-  const hash = new Uint8Array(digest);
-
-  if (targetBytes <= hash.length) {
-    return hash.slice(0, targetBytes);
-  }
 
   const output = new Uint8Array(targetBytes);
-  for (let i = 0; i < targetBytes; i += 1) {
-    output[i] = hash[i % hash.length];
+  let offset = 0;
+  for (let counter = 0; offset < targetBytes; counter += 1) {
+    // Prepend a 4-byte big-endian counter so each block has distinct input.
+    const block = new Uint8Array(4 + keyMaterial.length);
+    block[0] = (counter >>> 24) & 0xff;
+    block[1] = (counter >>> 16) & 0xff;
+    block[2] = (counter >>> 8) & 0xff;
+    block[3] = counter & 0xff;
+    block.set(keyMaterial, 4);
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', block.buffer as ArrayBuffer));
+    const take = Math.min(digest.length, targetBytes - offset);
+    output.set(digest.subarray(0, take), offset);
+    offset += take;
   }
   return output;
 }
