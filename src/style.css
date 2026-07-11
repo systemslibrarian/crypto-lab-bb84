@@ -8,15 +8,19 @@
 }
 
 :root {
+  color-scheme: dark;
   --bg: #0a0a1a;
   --bg-panel: #111128;
   --bg-channel: #080818;
   --text: #e0e0f0;
-  --text-muted: #8888aa;
+  /* #9c9cbc keeps muted text >=4.5:1 even on the lighter --btn-hover surface. */
+  --text-muted: #9c9cbc;
   --border: #222244;
   --alice: #00d4ff;
   --bob: #00ff88;
-  --eve: #ff3366;
+  /* Lighter neon red than #ff3366 so Eve-colored TEXT stays >=4.5:1 on
+     --btn-hover (#2a2a5a); pure graphics (SVG channel) keep #ff3366. */
+  --eve: #ff6688;
   --matched: #ffd700;
   --mismatched: #444;
   --error-bit: #ff3366;
@@ -32,22 +36,24 @@
 }
 
 [data-theme='light'] {
+  color-scheme: light;
   --bg: #f0f4ff;
   --bg-panel: #ffffff;
   --bg-channel: #f0f4ff;
   --text: #1a1a2e;
-  --text-muted: #555577;
+  --text-muted: #4d4d70;
   --border: #ccccdd;
   --btn-bg: #dde0f0;
   --btn-hover: #c0c4e0;
   --input-bg: #f4f6ff;
   --scroll-thumb: #aaaacc;
   /* Neon accents fail WCAG contrast on white surfaces, so the light theme
-     uses darker shades for any accent that carries TEXT or borders. The
+     uses darker shades for any accent that carries TEXT or borders — dark
+     enough to stay >=4.5:1 on the tinted button/banner surfaces too. The
      always-dark channel keeps its own bright hardcoded colors. */
-  --alice: #0a6e87;
-  --eve: #c5283d;
-  --safe: #0f7a4d;
+  --alice: #085a6e;
+  --eve: #96202f;
+  --safe: #0c623e;
   /* Gauge ticks/needle/value ink and status colors on the light panel. */
   --gauge-green: #0f7a4d;
   --gauge-amber: #9a6100;
@@ -57,14 +63,14 @@
 
 html {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--bg);
+  background-color: var(--bg);
   color: var(--text);
   line-height: 1.5;
 }
 
 body {
   min-height: 100vh;
-  background: var(--bg);
+  background-color: var(--bg);
 }
 
 /* ── Layout ─────────────────────────────────────────────── */
@@ -107,7 +113,7 @@ body {
   font-size: 0.75rem;
   text-align: center;
   padding: 6px 12px;
-  background: #1a1a10;
+  background-color: #1a1a10;
   border: 1px solid #554400;
   border-radius: 4px;
   color: #ffaa00;
@@ -116,7 +122,7 @@ body {
 }
 
 [data-theme='light'] .sim-banner {
-  background: #fff8e0;
+  background-color: #fff8e0;
   border-color: #ccaa44;
   color: #886600;
 }
@@ -136,14 +142,14 @@ body {
   padding: 8px 18px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--btn-bg);
+  background-color: var(--btn-bg);
   color: var(--text);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background-color 0.2s;
 }
 
 .controls button:hover:not(:disabled) {
-  background: var(--btn-hover);
+  background-color: var(--btn-hover);
 }
 
 .controls button:disabled {
@@ -194,7 +200,7 @@ body {
   padding: 6px 10px;
   border: 1px solid var(--border);
   border-radius: 4px;
-  background: var(--input-bg);
+  background-color: var(--input-bg);
   color: var(--text);
   width: 260px;
 }
@@ -205,7 +211,7 @@ body {
   padding: 6px 14px;
   border: 1px solid var(--alice);
   border-radius: 4px;
-  background: var(--btn-bg);
+  background-color: var(--btn-bg);
   color: var(--alice);
   cursor: pointer;
 }
@@ -222,7 +228,7 @@ body {
   /* The quantum channel keeps a dark backdrop in both themes so the neon
      photon/polarization colors stay vivid and high-contrast (matching the
      always-dark shared header bar). */
-  background: #080818;
+  background-color: #080818;
   border: 1px solid var(--border);
   border-radius: 8px;
   position: relative;
@@ -245,7 +251,7 @@ body {
   color: var(--text-muted);
   border: 1px solid var(--border);
   border-top: none;
-  background: var(--bg-panel);
+  background-color: var(--bg-panel);
   border-radius: 0 0 8px 8px;
   margin-bottom: 12px;
 }
@@ -281,10 +287,10 @@ body {
   flex: 0 0 auto;
 }
 
-.channel-legend .dot-key { background: var(--matched); }
-.channel-legend .dot-err { background: var(--error-bit); }
-.channel-legend .dot-discard { background: #666; }
-.channel-legend .dot-eve { background: var(--eve); }
+.channel-legend .dot-key { background-color: var(--matched); }
+.channel-legend .dot-err { background-color: var(--error-bit); }
+.channel-legend .dot-discard { background-color: #666; }
+.channel-legend .dot-eve { background-color: var(--eve); }
 
 .channel-legend .legend-basis {
   color: var(--text);
@@ -309,13 +315,13 @@ body {
 .result-banner.clean {
   color: var(--safe);
   border-color: var(--safe);
-  background: color-mix(in srgb, var(--safe) 12%, transparent);
+  background-color: color-mix(in srgb, var(--safe) 12%, transparent);
 }
 
 .result-banner.detected {
   color: var(--eve);
   border-color: var(--eve);
-  background: color-mix(in srgb, var(--eve) 12%, transparent);
+  background-color: color-mix(in srgb, var(--eve) 12%, transparent);
 }
 
 /* ── Bottom Grid ────────────────────────────────────────── */
@@ -326,7 +332,7 @@ body {
 }
 
 .panel {
-  background: var(--bg-panel);
+  background-color: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
@@ -338,7 +344,7 @@ body {
   width: 6px;
 }
 .panel::-webkit-scrollbar-thumb {
-  background: var(--scroll-thumb);
+  background-color: var(--scroll-thumb);
   border-radius: 3px;
 }
 
@@ -368,7 +374,7 @@ body {
   font-family: 'Courier New', monospace;
   font-size: 0.82rem;
   font-weight: 600;
-  background: var(--bg);
+  background-color: var(--bg);
   user-select: none;
 }
 
@@ -414,7 +420,7 @@ body {
 
 .step .progress-bar {
   height: 3px;
-  background: var(--border);
+  background-color: var(--border);
   border-radius: 2px;
   margin: 6px 0;
   overflow: hidden;
@@ -422,7 +428,7 @@ body {
 
 .step .progress-fill {
   height: 100%;
-  background: var(--alice);
+  background-color: var(--alice);
   width: 0%;
   transition: width 0.3s;
 }
@@ -486,7 +492,7 @@ body {
   font-family: 'Courier New', monospace;
   font-size: 0.8rem;
   font-weight: 700;
-  background: var(--bg);
+  background-color: var(--bg);
   user-select: none;
   display: flex;
   align-items: center;
