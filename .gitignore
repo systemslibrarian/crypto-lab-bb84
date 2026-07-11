@@ -16,6 +16,7 @@ dist-ssr
 /test-results/
 /playwright-report/
 /playwright/.cache/
+.pw-browsers/
 
 # Editor directories and files
 .vscode/*
