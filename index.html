@@ -132,7 +132,17 @@
 </script>
 <!-- END crypto-lab shared header -->
     <main id="app" role="main" tabindex="-1" aria-label="BB84 Quantum Key Distribution simulator">
-      <h1 class="sr-only">BB84 Quantum Key Distribution Simulator</h1>
+      <header class="cl-hero">
+        <div class="cl-hero-main">
+          <h1 class="cl-hero-title">BB84</h1>
+          <p class="cl-hero-sub">Quantum Key Distribution · Bennett–Brassard 1984</p>
+          <p class="cl-hero-desc">Watch Alice send polarized photons in random bases, Bob measure and sift a shared key, and Eve's interception spike the QBER to ~25% and expose her.</p>
+        </div>
+        <aside class="cl-hero-why" aria-label="Why it matters">
+          <span class="cl-hero-why-label">WHY IT MATTERS</span>
+          <p class="cl-hero-why-text">QKD's secrecy rests on physics, not hard math, so a quantum computer that breaks RSA and ECDH cannot break it. Any eavesdropper unavoidably disturbs the photons, turning wiretapping into a detectable event.</p>
+        </aside>
+      </header>
       <div class="sim-banner" role="status">SIMULATED — This demo simulates the BB84 protocol classically. No actual photons or quantum states are produced. Security claims assume a perfect implementation.</div>
       <!-- Controls -->
       <div class="controls" role="toolbar" aria-label="Simulation controls">
