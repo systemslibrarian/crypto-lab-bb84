@@ -18,6 +18,14 @@ Browser-based simulation of the BB84 Quantum Key Distribution protocol (Bennett 
 
 Run the BB84 protocol with or without an eavesdropper (Eve) and watch photons animate through the quantum channel in real time. Adjust the number of photons (64–512), channel noise rate, and QBER detection threshold with sliders. After key exchange completes, the demo automatically encrypts and decrypts a user-supplied message with AES-256-GCM using the BB84-derived key.
 
+To make the protocol's mechanics legible rather than decorative, the demo also shows:
+
+1. **A polarization decoder** next to the channel that maps each photon's line angle to its (basis, bit) — and you can click any landed photon to freeze and read exactly what Alice encoded on it (e.g. "bit 1, ⊕ basis, 90°").
+2. **A live per-photon sifting table** — Alice's bit, Alice's basis, Bob's independently-chosen basis, and the KEEP/DISCARD outcome — highlighting each column as its photon lands, so the ~50% survival rate reads as a coin-flip consequence rather than a magic number.
+3. **Inline Eve annotations**: on an Eve run, each wrong-basis interception is captioned at the moment it happens ("Eve guessed ⊗, Alice used ⊕ → rotated"), and a running tally ties those interceptions to the QBER climbing toward ~25%.
+4. **A per-step caption** above the channel that narrates the step in progress in plain language, and **a minimap** of every photon's outcome (kept / discarded / errored) so the sampled detail views reconcile with the aggregate counters.
+5. **A privacy-amplification visual** showing the raw sifted key distilled by SHA-256 into the final 256-bit key, so the step is more than an opaque hex dump.
+
 ## What Can Go Wrong
 
 - **Unauthenticated classical channel:** BB84 needs an authenticated public channel for basis reconciliation; without authentication an active attacker can mount a man-in-the-middle on the sifting step.

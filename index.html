@@ -172,8 +172,26 @@
       <!-- Run outcome -->
       <div id="result-banner" class="result-banner" role="status" aria-live="polite" hidden></div>
 
-      <!-- Panel A: Quantum Channel -->
-      <div class="panel-channel" role="img" aria-label="Quantum channel showing photons traveling from Alice to Bob">
+      <!-- Live per-step caption: plain-language narration of the step in progress,
+           so a learner watching the channel gets the story without expanding the
+           six accordion steps. -->
+      <p id="channel-caption" class="channel-caption" role="status" aria-live="polite">Press <strong>Run Without Eve</strong> or <strong>Run With Eve</strong> to send photons down the channel.</p>
+
+      <!-- Polarization decoder: tells the newcomer that the line angle drawn on
+           each photon IS its (basis, bit). The animation already draws the real
+           angle; this makes it readable. -->
+      <div class="decoder" aria-label="Polarization decoder — line angle encodes basis and bit">
+        <span class="decoder-title">Line angle = basis + bit:</span>
+        <span class="decoder-key"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><line x1="10" y1="3" x2="10" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> 90° · ⊕ bit 1</span>
+        <span class="decoder-key"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><line x1="3" y1="10" x2="17" y2="10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> 0° · ⊕ bit 0</span>
+        <span class="decoder-key"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><line x1="4" y1="16" x2="16" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> 45° · ⊗ bit 0</span>
+        <span class="decoder-key"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><line x1="4" y1="4" x2="16" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> 135° · ⊗ bit 1</span>
+      </div>
+
+      <!-- Panel A: Quantum Channel. role=group (not img) because photons that
+           have landed are interactive/inspectable; an img role forbids focusable
+           descendants (axe nested-interactive). -->
+      <div class="panel-channel" role="group" aria-label="Quantum channel showing photons traveling from Alice to Bob">
         <svg id="channel-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 280" preserveAspectRatio="xMidYMid meet">
           <!-- Fiber optic tube -->
           <rect x="120" y="125" width="760" height="30" rx="15" fill="none" stroke="#222255" stroke-width="2" opacity="0.5"/>
@@ -191,6 +209,10 @@
         </svg>
       </div>
 
+      <!-- Photon inspector: click/tap or keyboard-activate a landed photon to
+           freeze its decoded (bit, basis, angle) reading here. -->
+      <p id="photon-inspector" class="photon-inspector" role="status" aria-live="polite">Click a photon as it lands to read what Alice encoded on it.</p>
+
       <!-- Counters -->
       <div class="channel-counters" aria-live="polite">
         <span>Photons sent: <strong id="cnt-sent">0</strong></span>
@@ -206,6 +228,47 @@
         <span><i class="dot dot-discard"></i> Discarded — bases differ</span>
         <span><i class="dot dot-eve"></i> Eve intercept</span>
         <span class="legend-basis">⊕ rectilinear &middot; ⊗ diagonal</span>
+      </div>
+
+      <!-- Sifting table: THE BB84 mental model. For a small sample of photons,
+           show Alice's bit, Alice's basis, Bob's (independent, random) basis,
+           and the keep/discard outcome. Keep when bases match; discard when they
+           differ — this is the origin of the ~50% survival rate. -->
+      <div class="sift-block">
+        <div class="sift-caption">
+          <h2 class="sift-title">Sifting — keep the photon only when the bases match</h2>
+          <p class="sift-note" id="sift-sample-note">Showing a sample of photons. Bob picks his basis independently and at random, with no knowledge of Alice's — so bases agree about half the time.</p>
+        </div>
+        <div class="sift-table-scroll" tabindex="0" role="region" aria-label="Per-photon sifting comparison table">
+          <table class="sift-table" id="sift-table">
+            <caption class="sr-only">For each sampled photon: Alice's bit, Alice's basis, Bob's basis, and whether the photon is kept or discarded.</caption>
+            <tbody>
+              <tr id="sift-row-idx"><th scope="row">#</th></tr>
+              <tr id="sift-row-abit"><th scope="row">Alice bit</th></tr>
+              <tr id="sift-row-abasis"><th scope="row">Alice basis</th></tr>
+              <tr id="sift-row-bbasis"><th scope="row">Bob basis</th></tr>
+              <tr id="sift-row-outcome"><th scope="row">Sift</th></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="sift-empty" id="sift-empty">Run the protocol to build the per-photon sifting table.</p>
+      </div>
+
+      <!-- Minimap: one colored tick per sifted/discarded/error outcome across ALL
+           N photons, so the sampled detail views and the aggregate counters
+           visibly reconcile. -->
+      <div class="minimap-block">
+        <div class="minimap-caption">
+          <span class="minimap-title" id="minimap-title">All photons at a glance</span>
+          <span class="minimap-key">
+            <span class="mm-swatch mm-key"></span> kept
+            <span class="mm-swatch mm-discard"></span> discarded
+            <span class="mm-swatch mm-err"></span> error (sacrificed)
+          </span>
+        </div>
+        <div class="minimap" id="minimap" role="img" aria-label="Overview of all photon outcomes">
+          <div class="minimap-empty" id="minimap-empty">Run the protocol to map every photon's outcome.</div>
+        </div>
       </div>
 
       <!-- Bottom grid -->

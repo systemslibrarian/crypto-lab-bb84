@@ -35,9 +35,26 @@ const gaugeSvg    = $<SVGSVGElement>('gauge-svg');
 const gaugeNeedle = $<SVGLineElement>('gauge-needle');
 const gaugeLabel  = $<SVGTextElement>('gauge-label');
 
+const channelCaption  = $<HTMLParagraphElement>('channel-caption');
+const photonInspector = $<HTMLParagraphElement>('photon-inspector');
+const siftBlock       = document.querySelector('.sift-block') as HTMLDivElement;
+const siftSampleNote  = $<HTMLParagraphElement>('sift-sample-note');
+const siftRowIdx      = $<HTMLTableRowElement>('sift-row-idx');
+const siftRowABit     = $<HTMLTableRowElement>('sift-row-abit');
+const siftRowABasis   = $<HTMLTableRowElement>('sift-row-abasis');
+const siftRowBBasis   = $<HTMLTableRowElement>('sift-row-bbasis');
+const siftRowOutcome  = $<HTMLTableRowElement>('sift-row-outcome');
+const minimap         = $<HTMLDivElement>('minimap');
+const minimapTitle    = $<HTMLSpanElement>('minimap-title');
+
 // ── State ──────────────────────────────────────────────────
 let running = false;
 let amplifiedKey: Uint8Array | null = null;
+// Count of wrong-basis Eve interceptions seen so far in the animated sample,
+// plus how many of those actually flipped Bob's bit — this is the running,
+// visible origin of the QBER during an Eve run.
+let eveWrongBasisSeen = 0;
+let eveInducedErrorsSeen = 0;
 
 // ── Slider labels ──────────────────────────────────────────
 slPhotons.addEventListener('input', () => { lblPhotons.textContent = slPhotons.value; });
@@ -96,6 +113,169 @@ function delay(ms: number): Promise<void> {
 
 function basisSymbol(b: string): string {
   return b === 'rectilinear' ? '⊕' : '⊗';
+}
+
+// Alice's ORIGINAL polarization angle (degrees) for a photon, before any Eve
+// interception overwrites p.polarization. This is the physical carrier the
+// decoder legend explains.
+function aliceAngleDeg(p: Photon): number {
+  if (p.aliceBasis === 'rectilinear') return p.aliceBit === 0 ? 0 : 90;
+  return p.aliceBit === 0 ? 45 : 135;
+}
+
+function angleDegFor(bit: number, basis: string): number {
+  if (basis === 'rectilinear') return bit === 0 ? 0 : 90;
+  return bit === 0 ? 45 : 135;
+}
+
+// ── Live per-step caption ──────────────────────────────────
+function setCaption(html: string): void {
+  channelCaption.innerHTML = html;
+}
+
+// ── Photon inspector (click a landed photon to freeze its reading) ──
+function setInspector(html: string): void {
+  photonInspector.innerHTML = html;
+}
+
+function describePhoton(p: Photon, evePresent: boolean): string {
+  const bit = p.aliceBit;
+  const sym = basisSymbol(p.aliceBasis);
+  const deg = aliceAngleDeg(p);
+  let s = `<strong>Alice sent:</strong> bit ${bit}, ${sym} basis, ${deg}° polarization.`;
+  if (evePresent && p.eveBasis && p.eveBasis !== p.aliceBasis) {
+    const eDeg = p.eveBit !== undefined ? angleDegFor(p.eveBit, p.eveBasis) : deg;
+    s += ` <span class="ins-eve">Eve guessed ${basisSymbol(p.eveBasis)} (wrong) → resent at ${eDeg}° → Bob may misread.</span>`;
+  }
+  const bobSym = basisSymbol(p.bobBasis);
+  s += ` <strong>Bob measured in ${bobSym}</strong> — ${p.basesMatch ? 'bases match, KEEP.' : 'bases differ, DISCARD.'}`;
+  return s;
+}
+
+// ── Sifting table + minimap ────────────────────────────────
+// Rows: index / Alice bit / Alice basis / Bob basis / outcome. Built for the
+// exact same sample the animation plays, so highlighting column j as photon j
+// lands lines up visually.
+function clearSiftTable(): void {
+  for (const row of [siftRowIdx, siftRowABit, siftRowABasis, siftRowBBasis, siftRowOutcome]) {
+    // Keep the leading <th> row header; drop the data cells.
+    while (row.children.length > 1) row.removeChild(row.lastChild!);
+  }
+  siftBlock.classList.remove('has-data');
+}
+
+interface SamplePhoton { photon: Photon; index: number; }
+
+function buildSiftTable(sample: SamplePhoton[]): void {
+  clearSiftTable();
+  sample.forEach(({ photon, index }, j) => {
+    const idxTd = document.createElement('td');
+    idxTd.textContent = String(index + 1);
+    idxTd.dataset.col = String(j);
+    siftRowIdx.appendChild(idxTd);
+
+    const bitTd = document.createElement('td');
+    bitTd.textContent = String(photon.aliceBit);
+    bitTd.dataset.col = String(j);
+    siftRowABit.appendChild(bitTd);
+
+    const aBasisTd = document.createElement('td');
+    aBasisTd.className = 'cell-basis';
+    aBasisTd.textContent = basisSymbol(photon.aliceBasis);
+    aBasisTd.dataset.col = String(j);
+    siftRowABasis.appendChild(aBasisTd);
+
+    const bBasisTd = document.createElement('td');
+    bBasisTd.className = 'cell-basis';
+    bBasisTd.textContent = basisSymbol(photon.bobBasis);
+    bBasisTd.dataset.col = String(j);
+    siftRowBBasis.appendChild(bBasisTd);
+
+    const outTd = document.createElement('td');
+    outTd.dataset.col = String(j);
+    if (photon.basesMatch) {
+      outTd.className = 'cell-keep';
+      outTd.textContent = '✓ KEEP';
+    } else {
+      outTd.className = 'cell-discard';
+      outTd.textContent = '✕ DROP';
+    }
+    siftRowOutcome.appendChild(outTd);
+  });
+  siftBlock.classList.add('has-data');
+}
+
+function highlightSiftColumn(col: number): void {
+  siftBlock.querySelectorAll('td.col-active').forEach(td => td.classList.remove('col-active'));
+  siftBlock.querySelectorAll(`td[data-col="${col}"]`).forEach(td => td.classList.add('col-active'));
+}
+
+function clearSiftHighlight(): void {
+  siftBlock.querySelectorAll('td.col-active').forEach(td => td.classList.remove('col-active'));
+}
+
+// One tick per photon across ALL N, so the sampled detail views reconcile with
+// the aggregate counters. A photon is an "error" tick only when it was a
+// sacrificed sifted bit that came out wrong (the errors the QBER actually sees).
+function renderMinimap(photons: Photon[]): void {
+  minimap.textContent = '';
+  const frag = document.createDocumentFragment();
+  let kept = 0, discarded = 0, errors = 0;
+  for (const p of photons) {
+    const tick = document.createElement('span');
+    tick.className = 'mm-tick';
+    if (p.sacrificed && p.isError) {
+      tick.classList.add('t-err');
+      errors += 1;
+    } else if (p.basesMatch) {
+      tick.classList.add('t-key');
+      kept += 1;
+    } else {
+      tick.classList.add('t-discard');
+      discarded += 1;
+    }
+    frag.appendChild(tick);
+  }
+  minimap.appendChild(frag);
+  minimap.setAttribute(
+    'aria-label',
+    `Overview of ${photons.length} photons: ${kept} kept, ${discarded} discarded, ${errors} sacrificed bits in error.`
+  );
+  minimapTitle.textContent = `All ${photons.length} photons at a glance`;
+}
+
+function clearMinimap(): void {
+  minimap.innerHTML = '<div class="minimap-empty" id="minimap-empty">Run the protocol to map every photon\'s outcome.</div>';
+  minimapTitle.textContent = 'All photons at a glance';
+}
+
+// Transient on-canvas annotation for a single wrong-basis Eve interception, plus
+// a running tally in the inspector line tying the count to the growing QBER.
+function showEveAnnotation(p: Photon): void {
+  eveWrongBasisSeen += 1;
+  // Bob "misreads" precisely when this sifted (bases-match) photon errs: Alice's
+  // and Bob's bits disagree despite matching bases. On a full-intercept Eve run
+  // that happens ~half the time she guessed wrong → the ~25% QBER.
+  const bobMisread = p.basesMatch && p.aliceBit !== p.bobBit;
+  if (bobMisread) eveInducedErrorsSeen += 1;
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const text = document.createElementNS(ns, 'text');
+  text.setAttribute('x', '500');
+  text.setAttribute('y', '105');
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('fill', '#ff6688');
+  text.setAttribute('font-family', 'Courier New,monospace');
+  text.setAttribute('font-size', '11');
+  text.setAttribute('font-weight', 'bold');
+  text.textContent = `Eve guessed ${basisSymbol(p.eveBasis!)}, Alice used ${basisSymbol(p.aliceBasis)} → rotated`;
+  photonGroup.appendChild(text);
+  setTimeout(() => { if (text.parentNode) text.parentNode.removeChild(text); }, 600);
+
+  setInspector(
+    `<span class="ins-eve">Eve wrong-basis intercepts: ${eveWrongBasisSeen}</span> · ` +
+    `Bob misreads so far: <strong>${eveInducedErrorsSeen}</strong> — each wrong guess resends a rotated photon that Bob reads wrong ~50% of the time. This is what drives the QBER up.`
+  );
 }
 
 function setStepState(n: number, state: 'active' | 'done' | 'error' | 'idle'): void {
@@ -192,25 +372,31 @@ function photonColor(p: Photon): string {
   return '#444444';
 }
 
-async function animatePhotons(photons: Photon[], evePresent: boolean): Promise<void> {
+// The sample is indexed so column j in the sifting table corresponds to the
+// jth animated photon. Landing photon j highlights sift column j.
+async function animatePhotons(sample: SamplePhoton[], evePresent: boolean): Promise<void> {
   clearPhotons();
   eveNode.style.display = evePresent ? 'block' : 'none';
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reducedMotion) return;
 
-  const total = photons.length;
+  const total = sample.length;
   const batchSize = Math.min(total, MAX_VISIBLE);
 
   for (let i = 0; i < total; i += batchSize) {
-    const batch = photons.slice(i, i + batchSize);
-    const promises = batch.map((p, j) => animateSinglePhoton(p, j * BATCH_DELAY_MS, evePresent));
+    const batch = sample.slice(i, i + batchSize);
+    const promises = batch.map((sp, j) =>
+      animateSinglePhoton(sp.photon, j * BATCH_DELAY_MS, evePresent, i + j));
     await Promise.all(promises);
     clearPhotons();
   }
+  clearSiftHighlight();
 }
 
-function animateSinglePhoton(p: Photon, delayMs: number, evePresent: boolean): Promise<void> {
+// evePresent stays a param for clarity; sampleCol is the photon's column in the
+// sifting table (also its global sample index) so we can highlight + inspect it.
+function animateSinglePhoton(p: Photon, delayMs: number, evePresent: boolean, sampleCol: number): Promise<void> {
   return new Promise(resolve => {
     setTimeout(() => {
       const ns = 'http://www.w3.org/2000/svg';
@@ -249,6 +435,29 @@ function animateSinglePhoton(p: Photon, delayMs: number, evePresent: boolean): P
       const totalDuration = PHOTON_TRAVEL_MS;
       const start = performance.now();
 
+      // Make the landed photon inspectable: click / tap / keyboard-activate it
+      // to freeze its decoded reading in the inspector line.
+      const wrongBasisEve = !!(evePresent && p.eveBasis && p.eveBasis !== p.aliceBasis);
+      g.setAttribute('data-inspectable', 'true');
+      g.setAttribute('tabindex', '0');
+      g.setAttribute('role', 'button');
+      const bit = p.aliceBit;
+      const deg = aliceAngleDeg(p);
+      g.setAttribute('aria-label',
+        `Photon ${sampleCol + 1}: Alice bit ${bit}, ${p.aliceBasis} basis, ${deg} degrees.` +
+        (wrongBasisEve ? ' Eve intercepted in the wrong basis.' : ''));
+      const inspect = (): void => {
+        setInspector(describePhoton(p, evePresent));
+        highlightSiftColumn(sampleCol);
+      };
+      g.addEventListener('click', inspect);
+      g.addEventListener('keydown', (e) => {
+        const k = (e as KeyboardEvent).key;
+        if (k === 'Enter' || k === ' ') { e.preventDefault(); inspect(); }
+      });
+
+      let annotated = false;
+
       function frame(now: number): void {
         const elapsed = now - start;
         const t = Math.min(1, elapsed / totalDuration);
@@ -282,6 +491,8 @@ function animateSinglePhoton(p: Photon, delayMs: number, evePresent: boolean): P
           const color = photonColor(p);
           dot.setAttribute('fill', color);
           line.setAttribute('stroke', color);
+          // Sync the sifting table: light up this photon's column as it lands.
+          highlightSiftColumn(sampleCol);
           setTimeout(() => {
             if (g.parentNode) g.parentNode.removeChild(g);
             resolve();
@@ -289,10 +500,17 @@ function animateSinglePhoton(p: Photon, delayMs: number, evePresent: boolean): P
           return;
         }
 
-        // Eve intercept color change
+        // Eve intercept color change + inline wrong-basis annotation. When Eve
+        // guesses the wrong basis for THIS photon, briefly caption the causal
+        // chain right at the interception point so the QBER contribution is
+        // legible rather than an asserted number.
         if (evePresent && t >= 0.45 && t < 0.55) {
           dot.setAttribute('fill', '#ff3366');
           line.setAttribute('stroke', '#ff3366');
+          if (wrongBasisEve && !annotated) {
+            annotated = true;
+            showEveAnnotation(p);
+          }
         } else if (evePresent && t >= 0.55) {
           dot.setAttribute('fill', '#ffaa00');
           line.setAttribute('stroke', '#ffaa00');
@@ -323,6 +541,11 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     updateCounters(0, 0, 0, 0);
     setGauge(0);
     setResultBanner('hidden');
+    clearSiftTable();
+    clearMinimap();
+    eveWrongBasisSeen = 0;
+    eveInducedErrorsSeen = 0;
+    setInspector('Click a photon as it lands to read what Alice encoded on it.');
 
     const nPhotons = parseInt(slPhotons.value, 10);
     const noiseRate = parseFloat(slNoise.value) / 100;
@@ -330,6 +553,11 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     const sacrificeRate = 0.5;
 
     // Step 1 — Alice prepares
+    setCaption(
+      evePresent
+        ? `<strong>Step 1 — Alice</strong> encodes each bit as a photon polarized in a random basis (⊕ or ⊗). Eve is listening on the line.`
+        : `<strong>Step 1 — Alice</strong> encodes each bit as a photon polarized in a random basis (⊕ or ⊗). The line angle on each dot IS the bit + basis.`
+    );
     setStepState(1, 'active');
     setStepContent(1, `Randomly choosing basis (⊕ or ⊗) and bit value for each photon...\n<div class="progress-bar"><div class="progress-fill" id="pf1"></div></div>`);
     await delay(200);
@@ -345,20 +573,39 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     setStepState(1, 'done');
 
     // Step 2 — Bob measures + animate
+    setCaption(
+      `<strong>Step 2 — Bob</strong> picks his own random basis for each photon — he has no idea which one Alice used. He keeps whatever his detector reads.`
+    );
     setStepState(2, 'active');
     setStepContent(2, `Bob randomly selects measurement basis for each incoming photon...`);
 
-    // Animate a sample of photons (max 64 for performance)
+    // Animate a sample of photons (max 64 for performance). Keep the ORIGINAL
+    // index so the sifting table, minimap sample, and animation all line up.
     const sampleSize = Math.min(64, nPhotons);
     const step = Math.max(1, Math.floor(nPhotons / sampleSize));
-    const samplePhotons = result.photons.filter((_, i) => i % step === 0).slice(0, sampleSize);
-    await animatePhotons(samplePhotons, evePresent);
+    const animSample: SamplePhoton[] = [];
+    for (let i = 0; i < result.photons.length && animSample.length < sampleSize; i += step) {
+      animSample.push({ photon: result.photons[i], index: i });
+    }
+
+    // Build the per-photon sifting table for a compact readable slice (first ~14
+    // of the animated sample). This is the BB84 mental model: keep-if-match.
+    const tableSample = animSample.slice(0, 14);
+    buildSiftTable(tableSample);
+    siftSampleNote.textContent =
+      `Showing ${tableSample.length} of ${nPhotons} photons. Bob picks his basis independently and at random, with no knowledge of Alice's — so bases agree about half the time, and only those become key bits.`;
+
+    await animatePhotons(animSample, evePresent);
 
     setStepContent(2, `${nPhotons} measurements complete.`);
     setStepState(2, 'done');
     updateCounters(nPhotons, 0, 0, 0);
+    renderMinimap(result.photons);
 
     // Step 3 — Basis sifting
+    setCaption(
+      `<strong>Step 3 — Sifting.</strong> Alice and Bob publicly compare only their BASES (never the bits). Where the ⊕/⊗ symbols match they keep the bit; where they differ they throw it away. Watch the table above: green KEEP, grey DROP.`
+    );
     setStepState(3, 'active');
     const aliceBases = result.photons.slice(0, 12).map(p => basisSymbol(p.aliceBasis)).join(',');
     const bobBases = result.photons.slice(0, 12).map(p => basisSymbol(p.bobBasis)).join(',');
@@ -366,6 +613,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     const survivalPct = ((siftedLen / nPhotons) * 100).toFixed(1);
 
     setStepContent(3,
+      `Bases (first 12 of ${nPhotons}):\n` +
       `Alice announces: [${aliceBases},...]\nBob announces:   [${bobBases},...]\n` +
       `Matching positions: ${result.siftedIndices.slice(0, 8).join(', ')}...\n` +
       `Sifted key length: ${siftedLen} bits (${survivalPct}% survival rate)`
@@ -375,6 +623,9 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     await delay(300);
 
     // Step 4 — Error estimation
+    setCaption(
+      `<strong>Step 4 — Error check.</strong> They sacrifice some kept bits to measure the QBER — the fraction that disagree. Natural noise is small; an eavesdropper forced to guess bases pushes it toward ~25%.`
+    );
     setStepState(4, 'active');
     const sacrificedCount = result.sacrificedBits;
     const errorCount = result.photons.filter(p => p.sacrificed && p.isError).length;
@@ -397,6 +648,9 @@ async function runProtocol(evePresent: boolean): Promise<void> {
       );
       setStepState(4, 'error');
       setResultBanner('detected', `✗ EAVESDROPPER DETECTED — QBER ${qberPct}% exceeds ${threshPct}% threshold. Key discarded.`);
+      setCaption(
+        `<strong>Eve detected.</strong> QBER ${qberPct}% is above the ${threshPct}% threshold — the errors you watched Eve inject add up. Alice and Bob throw the key away and try again. That detectability is the whole point of BB84.`
+      );
       updateCounters(nPhotons, siftedLen, errorCount, 0);
       return;
     }
@@ -410,10 +664,16 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     );
     setStepState(4, 'done');
     setResultBanner('clean', `✓ CHANNEL CLEAN — QBER ${qberPct}% below ${threshPct}% threshold. Proceeding to key derivation.`);
+    setCaption(
+      `<strong>Channel clean.</strong> QBER ${qberPct}% is under the ${threshPct}% threshold — no eavesdropper detectable. Alice and Bob keep the sifted key and finish deriving a shared secret.`
+    );
     updateCounters(nPhotons, siftedLen, errorCount, result.rawFinalKey.length);
     await delay(300);
 
     // Step 5 — Privacy amplification
+    setCaption(
+      `<strong>Step 5 — Privacy amplification.</strong> Even a clean-looking key can leak a few bits to Eve. Hashing the whole key with SHA-256 crushes any partial knowledge into a uniformly-secret 256-bit key.`
+    );
     setStepState(5, 'active');
     setStepContent(5, `Applying SHA-256 to raw key (${result.rawFinalKey.length} bits remaining after sacrifice)...`);
     await delay(200);
@@ -421,8 +681,27 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     amplifiedKey = result.finalKey;
     const keyHex = hexEncode(amplifiedKey);
 
+    // Privacy-amplification visual: map the raw sifted key against the final
+    // key. Widths are proportional to the LARGER of the two so the comparison is
+    // honest. When the raw key is long, hashing squeezes it DOWN (crushing out
+    // Eve's partial info); when few photons were sent, a 256-bit floor keeps the
+    // key usable for AES-256, so the caption adapts to what actually happened.
+    const rawBits = result.rawFinalKey.length;
+    const finalBits = amplifiedKey.length * 8;
+    const scale = Math.max(rawBits, finalBits, 1);
+    const rawPct = Math.max(6, (rawBits / scale) * 100);
+    const finalPct = Math.max(6, (finalBits / scale) * 100);
+    const shrank = rawBits > finalBits;
+    const finalNote = shrank
+      ? `Final key: ${finalBits} bits — SHA-256 squeezes the raw key down, crushing Eve's partial info out`
+      : `Final key: ${finalBits} bits — SHA-256 distills the raw bits into a uniform secret (256-bit floor for AES-256)`;
     setStepContent(5,
-      `Final key: ${amplifiedKey.length * 8} bits\n` +
+      `<div class="pa-visual">` +
+      `<div class="pa-bar" style="width:${rawPct.toFixed(1)}%"></div>` +
+      `<div class="pa-bar-label">Raw sifted key: ${rawBits} bits — Eve may know a few of them</div>` +
+      `<div class="pa-bar pa-final" style="width:${finalPct.toFixed(1)}%"></div>` +
+      `<div class="pa-bar-label">${finalNote}</div>` +
+      `</div>` +
       `Key: ${keyHex.slice(0, 32)}...`
     );
     setStepState(5, 'done');
@@ -430,6 +709,9 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     await delay(200);
 
     // Step 6 — Auto-encrypt with AES-256-GCM
+    setCaption(
+      `<strong>Step 6 — Use the key.</strong> The 256-bit shared secret now keys real AES-256-GCM to encrypt (and authenticate) a message — end to end, in your browser.`
+    );
     setStepState(6, 'active');
     const autoMessage = msgInput.value || 'Hello from BB84';
 
@@ -518,6 +800,12 @@ function resetAll(): void {
   setResultBanner('hidden');
   clearPhotons();
   eveNode.style.display = 'none';
+  clearSiftTable();
+  clearMinimap();
+  eveWrongBasisSeen = 0;
+  eveInducedErrorsSeen = 0;
+  setInspector('Click a photon as it lands to read what Alice encoded on it.');
+  setCaption('Press <strong>Run Without Eve</strong> or <strong>Run With Eve</strong> to send photons down the channel.');
 }
 
 // ── Wire up buttons ────────────────────────────────────────

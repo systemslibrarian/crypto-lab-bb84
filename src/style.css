@@ -297,6 +297,277 @@ body {
   font-weight: 600;
 }
 
+/* ── Live step caption ──────────────────────────────────── */
+.channel-caption {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text);
+  padding: 8px 12px;
+  margin: 4px 0 8px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--alice);
+  border-radius: 4px;
+  background-color: var(--bg-panel);
+}
+
+.channel-caption strong {
+  color: var(--alice);
+}
+
+/* ── Polarization decoder ───────────────────────────────── */
+.decoder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background-color: var(--bg-panel);
+}
+
+.decoder-title {
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.decoder-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.decoder-key svg {
+  flex: 0 0 auto;
+  color: var(--alice);
+}
+
+/* ── Photon inspector ───────────────────────────────────── */
+.photon-inspector {
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  padding: 6px 12px;
+  margin: 6px 0 12px;
+  min-height: 1.5em;
+}
+
+.photon-inspector strong {
+  color: var(--text);
+}
+
+.photon-inspector .ins-eve {
+  color: var(--eve);
+  font-weight: 700;
+}
+
+/* Landed photons that can be inspected show a pointer cursor. */
+.photon-group g[data-inspectable='true'] {
+  cursor: pointer;
+}
+
+/* ── Sifting table ──────────────────────────────────────── */
+.sift-block {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background-color: var(--bg-panel);
+}
+
+.sift-caption {
+  margin-bottom: 8px;
+}
+
+.sift-title {
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.sift-note {
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.sift-table-scroll {
+  overflow-x: auto;
+}
+
+.sift-table-scroll:focus-visible {
+  outline: 2px solid var(--alice);
+  outline-offset: 2px;
+}
+
+.sift-table {
+  border-collapse: collapse;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  min-width: 100%;
+}
+
+.sift-table th[scope='row'] {
+  text-align: left;
+  padding: 4px 10px 4px 2px;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+  position: sticky;
+  left: 0;
+  background-color: var(--bg-panel);
+}
+
+.sift-table td {
+  padding: 4px 6px;
+  text-align: center;
+  min-width: 30px;
+  color: var(--text);
+  border-left: 1px solid var(--border);
+}
+
+/* Highlight the column of the photon currently landing in the animation. */
+.sift-table td.col-active {
+  background-color: color-mix(in srgb, var(--alice) 22%, transparent);
+}
+
+.sift-table .cell-basis {
+  font-weight: 700;
+}
+
+/* Outcome cells: state is carried by icon + text + color (never color alone). */
+.sift-table .cell-keep {
+  color: var(--safe);
+  font-weight: 700;
+}
+
+.sift-table .cell-discard {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.sift-empty {
+  font-family: 'Courier New', monospace;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 4px 2px;
+}
+
+.sift-block.has-data .sift-empty {
+  display: none;
+}
+
+.sift-block:not(.has-data) .sift-table-scroll {
+  display: none;
+}
+
+/* ── Minimap ────────────────────────────────────────────── */
+.minimap-block {
+  margin-bottom: 12px;
+}
+
+.minimap-caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 16px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.minimap-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.minimap-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mm-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-left: 8px;
+}
+
+.mm-swatch.mm-key { background-color: var(--matched); }
+.mm-swatch.mm-discard { background-color: #666; }
+.mm-swatch.mm-err { background-color: var(--error-bit); }
+
+.minimap {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background-color: var(--bg-panel);
+  min-height: 40px;
+}
+
+.minimap .mm-tick {
+  width: 6px;
+  height: 14px;
+  border-radius: 1px;
+  flex: 0 0 auto;
+}
+
+.minimap .mm-tick.t-key { background-color: var(--matched); }
+.minimap .mm-tick.t-discard { background-color: #666; }
+.minimap .mm-tick.t-err { background-color: var(--error-bit); }
+
+.minimap-empty {
+  font-family: 'Courier New', monospace;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* ── Privacy amplification shrink visual ────────────────── */
+.pa-visual {
+  margin: 8px 0;
+}
+
+.pa-bar {
+  height: 16px;
+  border-radius: 3px;
+  background-color: color-mix(in srgb, var(--alice) 30%, transparent);
+  border: 1px solid var(--alice);
+  transition: width 0.6s ease;
+  max-width: 100%;
+}
+
+.pa-bar.pa-final {
+  background-color: color-mix(in srgb, var(--safe) 35%, transparent);
+  border-color: var(--safe);
+  margin-top: 6px;
+}
+
+.pa-bar-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
 /* ── Result banner ──────────────────────────────────────── */
 .result-banner {
   font-family: 'Courier New', monospace;
