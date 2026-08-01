@@ -65,3 +65,43 @@ test('GCM authentication rejects a tampered ciphertext', async () => {
   const flipped = (enc.ciphertext[0] === '0' ? '1' : '0') + enc.ciphertext.slice(1);
   await assert.rejects(() => decryptWithBB84Key(r.finalKey, flipped, enc.iv));
 });
+
+// ── Key agreement ──────────────────────────────────────────
+// Step 6 encrypts under Alice's key and decrypts under Bob's, so these pin down
+// when the protocol really does produce a shared secret and when it does not.
+// Without an error-correction pass it does not, the moment a retained bit flips.
+
+test('a perfect channel leaves Alice and Bob holding the same key', async () => {
+  const r = await runBB84(N, false, 0, 0.11, 0.5);
+  assert.equal(r.residualErrors, 0, 'no noise and no Eve means no retained-bit disagreement');
+  assert.equal(r.keysAgree, true);
+  assert.deepEqual([...r.aliceFinalKey], [...r.finalKey]);
+});
+
+test('Alice encrypts and Bob decrypts on a perfect channel', async () => {
+  const r = await runBB84(N, false, 0, 0.11, 0.5);
+  const msg = 'So whether you eat or drink — BB84 🔐';
+  const enc = await encryptWithBB84Key(r.aliceFinalKey, msg);
+  const dec = await decryptWithBB84Key(r.finalKey, enc.ciphertext, enc.iv);
+  assert.equal(dec, msg);
+});
+
+test('channel noise leaves the two keys different, and Bob cannot decrypt', async () => {
+  // 2% noise over ~1000 retained bits: the chance of zero flips is ~e^-20.
+  const r = await runBB84(N, false, 0.02, 0.11, 0.5);
+  assert.ok(r.residualErrors > 0, `expected retained-bit disagreements, got ${r.residualErrors}`);
+  assert.equal(r.keysAgree, false, 'different raw bits must not amplify to the same key');
+  const enc = await encryptWithBB84Key(r.aliceFinalKey, 'no reconciliation pass here');
+  await assert.rejects(
+    () => decryptWithBB84Key(r.finalKey, enc.ciphertext, enc.iv),
+    'AES-GCM must reject, because BB84 without error correction did not produce a shared key'
+  );
+});
+
+test('an undetected-Eve run also fails to produce a shared key', async () => {
+  // Threshold pushed above 25% so Eve is NOT flagged; the keys still diverge.
+  const r = await runBB84(N, true, 0, 0.9, 0.5);
+  assert.equal(r.eveDetected, false, 'threshold deliberately set too high to flag her');
+  assert.ok(r.residualErrors > 0);
+  assert.equal(r.keysAgree, false);
+});

@@ -23,8 +23,23 @@ export interface BB84Result {
   sacrificedBits: number;
   qber: number;
   eveDetected: boolean;
+  /** Bob's retained bits (his detector readings) after the QBER sacrifice. */
   rawFinalKey: Bit[];
+  /** Alice's bits at the same retained positions. Equal to Bob's only where no error occurred. */
+  rawFinalKeyAlice: Bit[];
+  /**
+   * How many retained positions Alice and Bob actually disagree on. Real BB84
+   * removes these with an information-reconciliation (error-correction) pass
+   * before privacy amplification; this demo does not implement one, so a
+   * non-zero count here means the two sides end up with different keys.
+   */
+  residualErrors: number;
+  /** Bob's amplified key. */
   finalKey: Uint8Array;
+  /** Alice's amplified key, derived from her own bits by the identical process. */
+  aliceFinalKey: Uint8Array;
+  /** Whether the two amplified keys are in fact identical (computed, not assumed). */
+  keysAgree: boolean;
   keyLengthBits: number;
 }
 
@@ -83,6 +98,13 @@ function bitsToBytes(bits: Bit[], minBytes = 16): Uint8Array {
  * subtract a leakage term that grows with the QBER (a simplified ~2·QBER
  * fraction standing in for error-correction + privacy-amplification leakage),
  * with a 256-bit floor so the output can key AES-256.
+ *
+ * That floor matters for honesty: with the 64-512 photons this demo offers, the
+ * raw key is at most ~128 bits, so the floor always wins and SHA-256 is
+ * *stretching* the key rather than compressing it. The output is 256 bits wide
+ * but carries at most `rawKey.length` bits of entropy. A real deployment sends
+ * orders of magnitude more photons, where the subtraction bites and privacy
+ * amplification genuinely shrinks the key.
  *
  * Output is derived by SHA-256 in counter mode (H(0‖m) ‖ H(1‖m) ‖ …) so that
  * keys longer than one digest are still pseudo-random rather than a repeated
@@ -212,7 +234,23 @@ export async function runBB84(
 
   const postSacrificeIndices = siftedIndices.slice(sacrificedCount);
   const rawFinalKey = postSacrificeIndices.map((idx) => photons[idx].bobBit);
+  // Alice's side of the same retained positions. Deriving it is the only way to
+  // tell whether the protocol actually produced a *shared* key: Bob's detector
+  // readings differ from Alice's wherever noise or Eve flipped a bit, and this
+  // demo runs no error-correction pass to repair those positions.
+  const rawFinalKeyAlice = postSacrificeIndices.map((idx) => photons[idx].aliceBit);
+  let residualErrors = 0;
+  for (let i = 0; i < rawFinalKey.length; i += 1) {
+    if (rawFinalKey[i] !== rawFinalKeyAlice[i]) {
+      residualErrors += 1;
+    }
+  }
+
   const finalKey = await privacyAmplification(rawFinalKey, qber);
+  const aliceFinalKey = await privacyAmplification(rawFinalKeyAlice, qber);
+  const keysAgree =
+    finalKey.length === aliceFinalKey.length &&
+    finalKey.every((byte, i) => byte === aliceFinalKey[i]);
 
   return {
     photons,
@@ -222,7 +260,11 @@ export async function runBB84(
     qber,
     eveDetected,
     rawFinalKey,
+    rawFinalKeyAlice,
+    residualErrors,
     finalKey,
+    aliceFinalKey,
+    keysAgree,
     keyLengthBits: finalKey.length * 8,
   };
 }

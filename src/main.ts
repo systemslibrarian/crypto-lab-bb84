@@ -49,7 +49,13 @@ const minimapTitle    = $<HTMLSpanElement>('minimap-title');
 
 // ── State ──────────────────────────────────────────────────
 let running = false;
+// Bob's amplified key, and Alice's. They are kept apart on purpose: step 6
+// encrypts with Alice's and decrypts with Bob's, so the "decrypted" line is
+// earned by the protocol rather than by handing one key to both parties.
 let amplifiedKey: Uint8Array | null = null;
+let aliceAmplifiedKey: Uint8Array | null = null;
+let lastResidualErrors = 0;
+let lastRawKeyBits = 0;
 // Count of wrong-basis Eve interceptions seen so far in the animated sample,
 // plus how many of those actually flipped Bob's bit — this is the running,
 // visible origin of the QBER during an Eve run.
@@ -296,12 +302,17 @@ function setStepContent(n: number, html: string): void {
   $(`step-${n}-body`).innerHTML = html;
 }
 
-function updateCounters(sent: number, sifted: number, errors: number, keyBits: number): void {
+// `errors` are only ever counted among the SACRIFICED sifted bits, so the
+// percentage beside them has to use that same denominator or it is not the
+// QBER. Dividing by the full sifted length (as this once did) halves the number
+// at the 50% sacrifice rate and puts the counter in open disagreement with the
+// gauge and the result banner beside it.
+function updateCounters(sent: number, sifted: number, sacrificed: number, errors: number, keyBits: number): void {
   cntSent.textContent = String(sent);
   cntSifted.textContent = String(sifted);
   cntSiftPct.textContent = sent > 0 ? ((sifted / sent) * 100).toFixed(0) : '0';
   cntErrors.textContent = String(errors);
-  cntErrorPct.textContent = sifted > 0 ? ((errors / sifted) * 100).toFixed(1) : '0';
+  cntErrorPct.textContent = sacrificed > 0 ? ((errors / sacrificed) * 100).toFixed(1) : '0';
   cntKey.textContent = String(keyBits);
 }
 
@@ -531,6 +542,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
   setButtons(false);
   btnEncrypt.disabled = true;
   amplifiedKey = null;
+  aliceAmplifiedKey = null;
 
   try {
     // Reset steps
@@ -538,7 +550,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
       setStepState(i, 'idle');
       setStepContent(i, '');
     }
-    updateCounters(0, 0, 0, 0);
+    updateCounters(0, 0, 0, 0, 0);
     setGauge(0);
     setResultBanner('hidden');
     clearSiftTable();
@@ -599,7 +611,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
 
     setStepContent(2, `${nPhotons} measurements complete.`);
     setStepState(2, 'done');
-    updateCounters(nPhotons, 0, 0, 0);
+    updateCounters(nPhotons, 0, 0, 0, 0);
     renderMinimap(result.photons);
 
     // Step 3 — Basis sifting
@@ -619,7 +631,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
       `Sifted key length: ${siftedLen} bits (${survivalPct}% survival rate)`
     );
     setStepState(3, 'done');
-    updateCounters(nPhotons, siftedLen, 0, 0);
+    updateCounters(nPhotons, siftedLen, result.sacrificedBits, 0, 0);
     await delay(300);
 
     // Step 4 — Error estimation
@@ -651,7 +663,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
       setCaption(
         `<strong>Eve detected.</strong> QBER ${qberPct}% is above the ${threshPct}% threshold — the errors you watched Eve inject add up. Alice and Bob throw the key away and try again. That detectability is the whole point of BB84.`
       );
-      updateCounters(nPhotons, siftedLen, errorCount, 0);
+      updateCounters(nPhotons, siftedLen, sacrificedCount, errorCount, 0);
       return;
     }
 
@@ -667,25 +679,29 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     setCaption(
       `<strong>Channel clean.</strong> QBER ${qberPct}% is under the ${threshPct}% threshold — no eavesdropper detectable. Alice and Bob keep the sifted key and finish deriving a shared secret.`
     );
-    updateCounters(nPhotons, siftedLen, errorCount, result.rawFinalKey.length);
+    updateCounters(nPhotons, siftedLen, sacrificedCount, errorCount, result.rawFinalKey.length);
     await delay(300);
 
     // Step 5 — Privacy amplification
     setCaption(
-      `<strong>Step 5 — Privacy amplification.</strong> Even a clean-looking key can leak a few bits to Eve. Hashing the whole key with SHA-256 crushes any partial knowledge into a uniformly-secret 256-bit key.`
+      `<strong>Step 5 — Privacy amplification.</strong> Even a clean-looking key can leak a few bits to Eve. Hashing the whole raw key with SHA-256 spreads whatever secrecy it has evenly across the output, so partial knowledge of individual bits buys Eve nothing.`
     );
     setStepState(5, 'active');
     setStepContent(5, `Applying SHA-256 to raw key (${result.rawFinalKey.length} bits remaining after sacrifice)...`);
     await delay(200);
 
     amplifiedKey = result.finalKey;
+    aliceAmplifiedKey = result.aliceFinalKey;
+    lastResidualErrors = result.residualErrors;
+    lastRawKeyBits = result.rawFinalKey.length;
     const keyHex = hexEncode(amplifiedKey);
 
     // Privacy-amplification visual: map the raw sifted key against the final
     // key. Widths are proportional to the LARGER of the two so the comparison is
-    // honest. When the raw key is long, hashing squeezes it DOWN (crushing out
-    // Eve's partial info); when few photons were sent, a 256-bit floor keeps the
-    // key usable for AES-256, so the caption adapts to what actually happened.
+    // honest — and at 64-512 photons the raw key is always shorter than 256
+    // bits, so what the visitor is watching is SHA-256 *stretching* a short key
+    // to AES-256 width, not compressing a long one. Say so, and state the
+    // entropy bound that follows, rather than implying 256 bits of secrecy.
     const rawBits = result.rawFinalKey.length;
     const finalBits = amplifiedKey.length * 8;
     const scale = Math.max(rawBits, finalBits, 1);
@@ -694,7 +710,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     const shrank = rawBits > finalBits;
     const finalNote = shrank
       ? `Final key: ${finalBits} bits — SHA-256 squeezes the raw key down, crushing Eve's partial info out`
-      : `Final key: ${finalBits} bits — SHA-256 distills the raw bits into a uniform secret (256-bit floor for AES-256)`;
+      : `Final key: ${finalBits} bits wide, but only ${rawBits} bits of entropy — SHA-256 is stretching ${rawBits} raw bits to AES-256 width, not compressing. A real link sends millions of photons, where privacy amplification genuinely shrinks the key.`;
     setStepContent(5,
       `<div class="pa-visual">` +
       `<div class="pa-bar" style="width:${rawPct.toFixed(1)}%"></div>` +
@@ -705,12 +721,12 @@ async function runProtocol(evePresent: boolean): Promise<void> {
       `Key: ${keyHex.slice(0, 32)}...`
     );
     setStepState(5, 'done');
-    updateCounters(nPhotons, siftedLen, errorCount, amplifiedKey.length * 8);
+    updateCounters(nPhotons, siftedLen, sacrificedCount, errorCount, amplifiedKey.length * 8);
     await delay(200);
 
     // Step 6 — Auto-encrypt with AES-256-GCM
     setCaption(
-      `<strong>Step 6 — Use the key.</strong> The 256-bit shared secret now keys real AES-256-GCM to encrypt (and authenticate) a message — end to end, in your browser.`
+      `<strong>Step 6 — Use the key.</strong> Alice encrypts with <em>her</em> derived key and Bob decrypts with <em>his</em>. If the protocol really produced a shared secret, the message comes back; if it did not, AES-GCM's tag check refuses.`
     );
     setStepState(6, 'active');
     const autoMessage = msgInput.value || 'Hello from BB84';
@@ -721,23 +737,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
       return;
     }
 
-    try {
-      const enc = await encryptWithBB84Key(amplifiedKey, autoMessage);
-      const dec = await decryptWithBB84Key(amplifiedKey, enc.ciphertext, enc.iv);
-
-      setStepContent(6,
-        `Message: "${escapeHtml(autoMessage)}"\n` +
-        `Key: ${keyHex.slice(0, 32)}...\n` +
-        `IV: ${enc.iv}\n` +
-        `Ciphertext: ${enc.ciphertext.slice(0, 40)}...\n` +
-        `Auth Tag: ${enc.authTag}\n` +
-        `✓ Decrypted: "${escapeHtml(dec)}"`
-      );
-      setStepState(6, 'done');
-    } catch (err) {
-      setStepContent(6, `Encryption failed: ${escapeHtml(String(err))}`);
-      setStepState(6, 'error');
-    }
+    await runStep6(autoMessage);
 
     btnEncrypt.disabled = false;
   } catch (err) {
@@ -752,39 +752,70 @@ async function runProtocol(evePresent: boolean): Promise<void> {
 }
 
 // ── Encrypt handler ────────────────────────────────────────
-async function handleEncrypt(): Promise<void> {
-  if (!amplifiedKey || amplifiedKey.length < 32) {
+/**
+ * Alice encrypts, Bob decrypts — with the two keys each side actually derived.
+ *
+ * Handing one key object to both roles would make the "Decrypted" line
+ * unfalsifiable: it would print whether or not BB84 had produced a shared
+ * secret. It has not, whenever noise or an undetected Eve flipped a retained
+ * bit, because this demo runs no information-reconciliation (error-correction)
+ * pass. Encrypting under Alice's key and decrypting under Bob's lets AES-GCM's
+ * tag check answer the question for us.
+ */
+async function runStep6(message: string): Promise<void> {
+  if (!amplifiedKey || !aliceAmplifiedKey || amplifiedKey.length < 32) {
     setStepContent(6, 'Error: key too short for AES-256. Run with more photons.');
     setStepState(6, 'error');
     return;
   }
 
-  const message = msgInput.value || 'Hello from BB84';
-  setStepContent(6, `Encrypting: "${escapeHtml(message)}"...`);
-
   try {
-    const enc = await encryptWithBB84Key(amplifiedKey, message);
+    const enc = await encryptWithBB84Key(aliceAmplifiedKey, message);
     const dec = await decryptWithBB84Key(amplifiedKey, enc.ciphertext, enc.iv);
 
     setStepContent(6,
       `Message: "${escapeHtml(message)}"\n` +
-      `Key: ${hexEncode(amplifiedKey).slice(0, 32)}...\n` +
+      `Alice's key: ${hexEncode(aliceAmplifiedKey).slice(0, 32)}...\n` +
+      `Bob's key:   ${hexEncode(amplifiedKey).slice(0, 32)}...\n` +
       `IV: ${enc.iv}\n` +
       `Ciphertext: ${enc.ciphertext.slice(0, 40)}...\n` +
       `Auth Tag: ${enc.authTag}\n` +
-      `✓ Decrypted: "${escapeHtml(dec)}"`
+      `✓ Bob decrypted Alice's ciphertext: "${escapeHtml(dec)}"\n` +
+      `  (${lastRawKeyBits} retained bits, 0 of them in disagreement — the keys really are identical)`
     );
     setStepState(6, 'done');
-  } catch (err) {
-    setStepContent(6, `Encryption failed: ${escapeHtml(String(err))}`);
+  } catch {
+    // Reaching here means Bob's key differs from Alice's. Say exactly why
+    // instead of surfacing a raw OperationError.
+    setStepContent(6,
+      `Message: "${escapeHtml(message)}"\n` +
+      `Alice's key: ${hexEncode(aliceAmplifiedKey).slice(0, 32)}...\n` +
+      `Bob's key:   ${hexEncode(amplifiedKey).slice(0, 32)}...\n` +
+      `✗ Bob cannot decrypt Alice's ciphertext — AES-GCM's tag check rejected it.\n` +
+      `Why: ${lastResidualErrors} of the ${lastRawKeyBits} retained bits disagree between\n` +
+      `     Alice and Bob, so the two SHA-256 outputs are unrelated.\n` +
+      `Real BB84 fixes this with an information-reconciliation (error-correction)\n` +
+      `pass over the public channel BEFORE privacy amplification. This demo does\n` +
+      `not implement one, which is exactly why the mismatch is visible here.\n` +
+      `Set noise to 0% and run without Eve to see the keys agree.`
+    );
     setStepState(6, 'error');
   }
+}
+
+async function handleEncrypt(): Promise<void> {
+  const message = msgInput.value || 'Hello from BB84';
+  setStepContent(6, `Encrypting: "${escapeHtml(message)}"...`);
+  await runStep6(message);
 }
 
 // ── Reset ──────────────────────────────────────────────────
 function resetAll(): void {
   if (running) return;
   amplifiedKey = null;
+  aliceAmplifiedKey = null;
+  lastResidualErrors = 0;
+  lastRawKeyBits = 0;
   btnEncrypt.disabled = true;
 
   for (let i = 1; i <= 6; i++) {
@@ -795,7 +826,7 @@ function resetAll(): void {
     step.querySelector('.step-header')!.setAttribute('aria-expanded', 'false');
   }
 
-  updateCounters(0, 0, 0, 0);
+  updateCounters(0, 0, 0, 0, 0);
   setGauge(0);
   setResultBanner('hidden');
   clearPhotons();

@@ -2,7 +2,9 @@
 
 ## What It Is
 
-Browser-based simulation of the BB84 Quantum Key Distribution protocol (Bennett & Brassard, 1984). BB84 is the first quantum cryptography protocol, and one of a family of QKD key-exchange methods (E91, B92 and others followed) whose security rests on physics — specifically the no-cloning theorem — rather than on computational hardness assumptions. This demo simulates the complete six-step protocol classically: photon preparation, measurement, basis sifting, QBER error estimation, SHA-256 privacy amplification, and AES-256-GCM encryption with the derived key. Eve's eavesdropping is detectable via the ~25% QBER she introduces.
+Browser-based simulation of the BB84 Quantum Key Distribution protocol (Bennett & Brassard, 1984). BB84 is the first quantum cryptography protocol, and one of a family of QKD key-exchange methods (E91, B92 and others followed) whose security rests on physics — specifically the no-cloning theorem — rather than on computational hardness assumptions. This demo simulates six steps of the protocol classically: photon preparation, measurement, basis sifting, QBER error estimation, SHA-256 privacy amplification, and AES-256-GCM encryption with the derived key. Eve's eavesdropping is detectable via the ~25% QBER she introduces.
+
+It deliberately leaves out the seventh step, **information reconciliation** (error correction), and shows you the hole rather than papering over it. Alice and Bob each derive their own key from their own bits, and step 6 encrypts under Alice's key and decrypts under Bob's — so whenever noise or an undetected Eve flipped a retained bit, the two keys differ and AES-GCM's tag check refuses the message. At the default 256 photons and 1% noise that happens in roughly half of runs (measured over 300 simulated runs); set noise to 0% and run without Eve and the keys agree every time. That failure is the lesson: sifting plus privacy amplification alone does not give you a shared key over a real channel.
 
 ## When to Use It
 
@@ -16,7 +18,9 @@ Browser-based simulation of the BB84 Quantum Key Distribution protocol (Bennett 
 
 **[systemslibrarian.github.io/crypto-lab-bb84](https://systemslibrarian.github.io/crypto-lab-bb84/)**
 
-Run the BB84 protocol with or without an eavesdropper (Eve) and watch photons animate through the quantum channel in real time. Adjust the number of photons (64–512), channel noise rate, and QBER detection threshold with sliders. After key exchange completes, the demo automatically encrypts and decrypts a user-supplied message with AES-256-GCM using the BB84-derived key.
+Run the BB84 protocol with or without an eavesdropper (Eve) and watch photons animate through the quantum channel in real time. Adjust the number of photons (64–512), channel noise rate, and QBER detection threshold with sliders. After key exchange completes, the demo automatically encrypts a user-supplied message with AES-256-GCM under Alice's derived key and attempts to decrypt it under Bob's — a round trip that only succeeds when the two keys really are identical.
+
+Note the scale honestly: at 64–512 photons the raw key retained after sifting and the QBER sacrifice is 16–128 bits, so the 256-bit AES key SHA-256 produces is 256 bits *wide* while carrying at most that many bits of entropy. Privacy amplification is stretching here, not compressing. A real link sends photons by the million, which is where the compression that gives privacy amplification its name actually happens.
 
 To make the protocol's mechanics legible rather than decorative, the demo also shows:
 
@@ -31,7 +35,7 @@ To make the protocol's mechanics legible rather than decorative, the demo also s
 - **Unauthenticated classical channel:** BB84 needs an authenticated public channel for basis reconciliation; without authentication an active attacker can mount a man-in-the-middle on the sifting step.
 - **Channel noise vs. eavesdropping:** real QBER mixes natural noise with any eavesdropping, so the detection threshold trades false alarms against missed detection.
 - **Hardware side channels:** real photon sources leak — multi-photon pulses enable photon-number-splitting attacks, and detector-blinding attacks have broken deployed QKD links.
-- **Classical post-processing still matters:** error correction and privacy amplification must be done correctly, or the final key is not secret even when the QBER looks fine.
+- **Classical post-processing still matters:** error correction and privacy amplification must be done correctly, or the final key is not secret even when the QBER looks fine. This demo implements privacy amplification but no error correction, which is why a noisy run ends with Alice and Bob unable to talk to each other.
 - **This is a classical simulation:** it models the protocol with a CSPRNG, not real quantum states, so it cannot provide the physical security guarantees of true QKD hardware.
 
 ## Real-World Usage
