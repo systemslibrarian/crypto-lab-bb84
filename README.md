@@ -2,7 +2,7 @@
 
 ## What It Is
 
-Browser-based simulation of the BB84 Quantum Key Distribution protocol (Bennett & Brassard, 1984). BB84 is the first quantum cryptography protocol and the only key-exchange method whose security is guaranteed by physics — specifically the no-cloning theorem — rather than by computational hardness assumptions. This demo simulates the complete six-step protocol classically: photon preparation, measurement, basis sifting, QBER error estimation, SHA-256 privacy amplification, and AES-256-GCM encryption with the derived key. Eve's eavesdropping is detectable via the ~25% QBER she introduces.
+Browser-based simulation of the BB84 Quantum Key Distribution protocol (Bennett & Brassard, 1984). BB84 is the first quantum cryptography protocol, and one of a family of QKD key-exchange methods (E91, B92 and others followed) whose security rests on physics — specifically the no-cloning theorem — rather than on computational hardness assumptions. This demo simulates the complete six-step protocol classically: photon preparation, measurement, basis sifting, QBER error estimation, SHA-256 privacy amplification, and AES-256-GCM encryption with the derived key. Eve's eavesdropping is detectable via the ~25% QBER she introduces.
 
 ## When to Use It
 
@@ -60,5 +60,7 @@ npm run build    # type-check and produce a production build
 - [crypto-lab-kyber-vault](https://systemslibrarian.github.io/crypto-lab-kyber-vault/) — ML-KEM, the computational post-quantum KEM.
 
 ---
+
+*One of 170+ browser demos in the [Crypto Lab](https://crypto-lab.systemslibrarian.dev/) suite.*
 
 *"So whether you eat or drink or whatever you do, do it all for the glory of God." — 1 Corinthians 10:31*
