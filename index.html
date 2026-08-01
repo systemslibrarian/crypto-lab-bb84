@@ -337,7 +337,18 @@
             <div class="explainer-header" tabindex="0" role="button" aria-expanded="false" aria-controls="explainer-cloning-body">
               <span class="explainer-arrow">▶</span> WHY EVE CANNOT HIDE
             </div>
-            <div class="explainer-body" id="explainer-cloning-body">The no-cloning theorem (Wootters &amp; Zurek, 1982) states that an unknown quantum state cannot be perfectly copied without disturbing the original.
+            <div class="explainer-body" id="explainer-cloning-body">Two distinct theorems do the work here.
+
+No-cloning (Wootters &amp; Zurek, 1982; Dieks, 1982): no operation can produce a
+perfect copy of an arbitrary unknown quantum state. It is a statement about
+copying being impossible, not about disturbance — it is why Eve cannot duplicate
+the photon and let the original pass through untouched.
+
+Measurement disturbance: measuring in the wrong basis collapses the state and
+randomizes the outcome. This is what lets Alice and Bob detect Eve.
+
+No-cloning removes Eve's silent option; measurement disturbance exposes the one
+she has left.
 
 Eve's only option: measure the photon and resend a new one.
 But she does not know Alice's basis. If she guesses wrong:

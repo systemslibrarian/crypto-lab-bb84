@@ -7,7 +7,7 @@ Browser-based simulation of the BB84 Quantum Key Distribution protocol (Bennett 
 ## When to Use It
 
 - **Understanding QKD vs. post-quantum cryptography** — BB84 security is information-theoretic (physics-based), while ML-KEM/ML-DSA security is computational (math-based)
-- **Teaching the no-cloning theorem** — the demo makes eavesdropper detection tangible by showing how Eve's measurement collapses photon states
+- **Teaching no-cloning and measurement disturbance** — two separate facts: no-cloning forbids copying an unknown state at all, so Eve must measure; measuring in the wrong basis collapses the state, which is what makes her detectable
 - **Seeing QBER-based eavesdropper detection** — run with and without Eve to compare error rates directly
 - **Comparing security models** — the built-in table contrasts RSA, ECDSA, AES-256, ML-KEM, and BB84 side by side
 - **Do NOT use as a production QKD implementation** — this simulates the protocol classically using `crypto.getRandomValues`, not actual photons or quantum hardware
