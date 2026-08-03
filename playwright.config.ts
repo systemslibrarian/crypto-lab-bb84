@@ -12,7 +12,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'list' : [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://localhost:4222/crypto-lab-bb84/',
+    baseURL: 'http://localhost:4602/crypto-lab-bb84/',
     trace: 'retain-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
@@ -21,8 +21,8 @@ export default defineConfig({
     // Without the build, a source change that fails to compile leaves the last
     // good bundle in place and the suite passes green against code that no
     // longer builds — which silently invalidates mutation checks.
-    command: 'npm run build && npm run preview -- --port 4222 --strictPort',
-    url: 'http://localhost:4222/crypto-lab-bb84/',
+    command: 'npm run build && npm run preview -- --port 4602 --strictPort',
+    url: 'http://localhost:4602/crypto-lab-bb84/',
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
   },
