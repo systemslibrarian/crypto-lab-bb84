@@ -225,6 +225,15 @@
            freeze its decoded (bit, basis, angle) reading here. -->
       <p id="photon-inspector" class="photon-inspector" role="status" aria-live="polite">Click a photon as it lands to read what Alice encoded on it.</p>
 
+      <!-- Eve's running interception tally. It gets its own element rather than
+           sharing the inspector line above: the tally rewrites itself on every
+           wrong-basis interception, so while the two shared one element it wiped
+           out — within a few hundred milliseconds — the reading a visitor had
+           just clicked a photon to freeze. It is deliberately NOT aria-live: it
+           updates dozens of times per run, whereas the inspector announces
+           something the user explicitly asked for. -->
+      <p id="eve-tally" class="photon-inspector eve-tally"></p>
+
       <!-- Counters -->
       <div class="channel-counters" aria-live="polite">
         <span>Photons sent: <strong id="cnt-sent">0</strong></span>

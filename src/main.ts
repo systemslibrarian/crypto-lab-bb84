@@ -37,6 +37,7 @@ const gaugeLabel  = $<SVGTextElement>('gauge-label');
 
 const channelCaption  = $<HTMLParagraphElement>('channel-caption');
 const photonInspector = $<HTMLParagraphElement>('photon-inspector');
+const eveTally        = $<HTMLParagraphElement>('eve-tally');
 const siftBlock       = document.querySelector('.sift-block') as HTMLDivElement;
 const siftSampleNote  = $<HTMLParagraphElement>('sift-sample-note');
 const siftRowIdx      = $<HTMLTableRowElement>('sift-row-idx');
@@ -142,6 +143,15 @@ function setCaption(html: string): void {
 // ── Photon inspector (click a landed photon to freeze its reading) ──
 function setInspector(html: string): void {
   photonInspector.innerHTML = html;
+}
+
+// Eve's running tally has its own line. It used to be written into the
+// inspector, which meant a reading the visitor had just clicked a photon to
+// "freeze" was overwritten by the next wrong-basis interception — a few hundred
+// milliseconds later on a full-intercept run. Two independent readouts, two
+// elements.
+function setEveTally(html: string): void {
+  eveTally.innerHTML = html;
 }
 
 function describePhoton(p: Photon, evePresent: boolean): string {
@@ -278,7 +288,7 @@ function showEveAnnotation(p: Photon): void {
   photonGroup.appendChild(text);
   setTimeout(() => { if (text.parentNode) text.parentNode.removeChild(text); }, 600);
 
-  setInspector(
+  setEveTally(
     `<span class="ins-eve">Eve wrong-basis intercepts: ${eveWrongBasisSeen}</span> · ` +
     `Bob misreads so far: <strong>${eveInducedErrorsSeen}</strong> — each wrong guess resends a rotated photon that Bob reads wrong ~50% of the time. This is what drives the QBER up.`
   );
@@ -558,6 +568,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     eveWrongBasisSeen = 0;
     eveInducedErrorsSeen = 0;
     setInspector('Click a photon as it lands to read what Alice encoded on it.');
+    setEveTally('');
 
     const nPhotons = parseInt(slPhotons.value, 10);
     const noiseRate = parseFloat(slNoise.value) / 100;
@@ -836,6 +847,7 @@ function resetAll(): void {
   eveWrongBasisSeen = 0;
   eveInducedErrorsSeen = 0;
   setInspector('Click a photon as it lands to read what Alice encoded on it.');
+  setEveTally('');
   setCaption('Press <strong>Run Without Eve</strong> or <strong>Run With Eve</strong> to send photons down the channel.');
 }
 

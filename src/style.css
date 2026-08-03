@@ -375,6 +375,17 @@ body {
   font-weight: 700;
 }
 
+/* Eve's running interception tally sits under the inspector and takes up no
+   space at all until there is something to say. */
+.eve-tally {
+  margin-top: -10px;
+  min-height: 0;
+}
+
+.eve-tally:empty {
+  display: none;
+}
+
 /* Landed photons that can be inspected show a pointer cursor. */
 .photon-group g[data-inspectable='true'] {
   cursor: pointer;

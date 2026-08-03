@@ -21,7 +21,21 @@ async function expandAll(page: Page): Promise<void> {
   });
 }
 
+/**
+ * The header links transition background/border/colour over 150ms, so a scan
+ * fired immediately after the theme toggle catches them mid-blend and axe
+ * reports a colour-contrast violation against a colour neither theme ships.
+ * Freeze every transition and animation before scanning: this changes no
+ * palette value and suppresses no rule, it just makes axe sample a settled page.
+ */
+async function freezeTransitions(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content: '*, *::before, *::after { transition: none !important; animation: none !important; }',
+  });
+}
+
 async function scan(page: Page): Promise<void> {
+  await freezeTransitions(page);
   const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
   const summary = results.violations.map((v) => ({
     id: v.id,
