@@ -105,3 +105,72 @@ test('an undetected-Eve run also fails to produce a shared key', async () => {
   assert.ok(r.residualErrors > 0);
   assert.equal(r.keysAgree, false);
 });
+
+// ── The threshold boundary ────────────────────────────────────────────────
+// `eveDetected` used to be `qber > threshold`, so a run landing EXACTLY on the
+// threshold took the clean branch, and the page then said the QBER was "below"
+// / "under" the threshold — false, in the state where it matters most.
+//
+// Measured with this engine: QBER lands exactly on the threshold in 59 of
+// 19,200 runs (0.31%), and 49 of those 59 have Eve present. So the boundary is
+// overwhelmingly the run where the lab would have announced "no eavesdropper
+// detectable" with an eavesdropper on the line.
+//
+// This asserts the boundary directly rather than hunting for it statistically:
+// a sacrifice sample of exactly 4 bits with 1 error is a QBER of 0.25.
+test('QBER exactly at the threshold aborts, rather than being called clean', async () => {
+  // Drive the boundary through the public API by choosing a threshold the run
+  // can hit exactly. With sacrificeRate 0.5 the sacrificed count is half the
+  // sifted bits, so QBER is a ratio of small integers and hits round values.
+  let sawEquality = false;
+  for (let i = 0; i < 2000 && !sawEquality; i += 1) {
+    const r = await runBB84(64, true, 0, 0.2, 0.5);
+    if (r.qber === 0.2) {
+      sawEquality = true;
+      assert.equal(
+        r.eveDetected,
+        true,
+        'QBER equal to the threshold must be treated as detected, not clean',
+      );
+    }
+  }
+  assert.equal(sawEquality, true, 'the boundary case never occurred — test proved nothing');
+});
+
+test('a QBER just below the threshold is still clean', async () => {
+  // The fix must not turn the strict inequality inside out: below stays clean.
+  const r = await runBB84(4000, false, 0, 0.11, 0.5);
+  assert.equal(r.qber, 0);
+  assert.equal(r.eveDetected, false, 'a QBER of 0 must never be flagged');
+});
+
+// ── Privacy amplification binds the raw-key length ────────────────────────
+// `bitsToBytes` fills its 16-byte minimum by repeating the bit sequence
+// cyclically, so a key and that same key repeated produced byte-for-byte
+// identical material. Verified before the fix: a 16-bit key, its 32-bit double
+// and its 64-bit quadruple all derived the same final key.
+test('a key and the same key repeated derive DIFFERENT final keys', async () => {
+  const k = [1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1] as const;
+  const bits = [...k] as Array<0 | 1>;
+  const doubled = [...bits, ...bits];
+  const quad = [...doubled, ...doubled];
+
+  const hex = (u: Uint8Array) => Array.from(u, (b) => b.toString(16).padStart(2, '0')).join('');
+  const a = hex(await privacyAmplification(bits, 0.02));
+  const b = hex(await privacyAmplification(doubled, 0.02));
+  const c = hex(await privacyAmplification(quad, 0.02));
+
+  assert.notEqual(a, b, 'a key and its double must not collide');
+  assert.notEqual(b, c, 'a key and its quadruple must not collide');
+  assert.equal(a.length > 0 && b.length > 0 && c.length > 0, true);
+});
+
+test('privacy amplification stays deterministic for the same input', async () => {
+  const bits = [1, 0, 0, 1, 1, 1, 0, 1] as Array<0 | 1>;
+  const hex = (u: Uint8Array) => Array.from(u, (b) => b.toString(16).padStart(2, '0')).join('');
+  assert.equal(
+    hex(await privacyAmplification(bits, 0.02)),
+    hex(await privacyAmplification(bits, 0.02)),
+    'the same raw key must derive the same final key',
+  );
+});

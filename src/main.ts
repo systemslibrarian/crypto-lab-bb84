@@ -665,14 +665,14 @@ async function runProtocol(evePresent: boolean): Promise<void> {
         `QBER: ${qberPct}%\n` +
         `Threshold: ${threshPct}%\n` +
         `Status: ✗ EAVESDROPPER DETECTED — Abort. Key discarded.\n` +
-        `Reason: QBER exceeds threshold. Eve introduced errors by\n` +
+        `Reason: QBER reached the threshold. Eve introduced errors by\n` +
         `        measuring photons in random bases.\n` +
         `        (Eve's random basis choices cause ~25% QBER on full intercept)`
       );
       setStepState(4, 'error');
-      setResultBanner('detected', `✗ EAVESDROPPER DETECTED — QBER ${qberPct}% exceeds ${threshPct}% threshold. Key discarded.`);
+      setResultBanner('detected', `✗ EAVESDROPPER DETECTED — QBER ${qberPct}% is at or above the ${threshPct}% threshold. Key discarded.`);
       setCaption(
-        `<strong>Eve detected.</strong> QBER ${qberPct}% is above the ${threshPct}% threshold — the errors you watched Eve inject add up. Alice and Bob throw the key away and try again. That detectability is the whole point of BB84.`
+        `<strong>Eve detected.</strong> QBER ${qberPct}% reaches the ${threshPct}% threshold — the errors you watched Eve inject add up. Alice and Bob throw the key away and try again. That detectability is the whole point of BB84.`
       );
       updateCounters(nPhotons, siftedLen, sacrificedCount, errorCount, 0);
       return;

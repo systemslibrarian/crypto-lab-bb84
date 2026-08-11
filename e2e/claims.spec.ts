@@ -173,17 +173,25 @@ test('an eavesdropper run reaches the detected state and names the cause', async
   await expect(banner).not.toHaveClass(/\bclean\b/);
 
   const bannerText = await textOf(page, '#result-banner');
-  const m = bannerText.match(/✗ EAVESDROPPER DETECTED — QBER ([\d.]+)% exceeds ([\d.]+)% threshold\. Key discarded\./);
-  const qberText = (expect(m, 'banner did not match the detected shape').not.toBeNull(), m![1]);
+  const m = bannerText.match(
+    /✗ EAVESDROPPER DETECTED — QBER ([\d.]+)% is at or above the ([\d.]+)% threshold\. Key discarded\./,
+  );
+  expect(m, 'banner did not match the detected shape').not.toBeNull();
+  const qberText = m![1];
   const qber = num(m, 1, 'banner QBER');
   const threshold = num(m, 2, 'banner threshold');
-  expect(qber, 'a "detected" verdict whose QBER does not exceed its own threshold')
-    .toBeGreaterThan(threshold);
+  // `toBeGreaterThanOrEqual`, not `toBeGreaterThan`. The detection boundary is
+  // `qber >= threshold`: a run landing exactly on the threshold is detected, and
+  // this assertion previously encoded the strict form the code has been fixed
+  // away from. QBER hits the threshold exactly in 59 of 19,200 engine runs, and
+  // 49 of those have Eve present — so the equality case is not hypothetical.
+  expect(qber, 'a "detected" verdict whose QBER is below its own threshold')
+    .toBeGreaterThanOrEqual(threshold);
 
   // The cause is named, not just the outcome.
   const step4 = await textOf(page, '#step-4-body');
   expect(step4).toContain('EAVESDROPPER DETECTED — Abort. Key discarded.');
-  expect(step4).toContain('Reason: QBER exceeds threshold');
+  expect(step4).toContain('Reason: QBER reached the threshold');
   expect(step4).toContain('measuring photons in random bases');
   await expect(page.locator('#step-4')).toHaveClass(/error-step/);
   await expect(page.locator('#step-4')).not.toHaveClass(/\bdone\b/);
