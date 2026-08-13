@@ -374,6 +374,10 @@ function clearPhotons(): void {
 function setButtons(enabled: boolean): void {
   btnClean.disabled = !enabled;
   btnEve.disabled = !enabled;
+  // Reset is a no-op while a run is active (`resetAll` returns early), so it
+  // must LOOK inert too — an enabled button that silently does nothing reads
+  // as broken.
+  btnReset.disabled = !enabled;
   slPhotons.disabled = !enabled;
   slNoise.disabled = !enabled;
   slThreshold.disabled = !enabled;
@@ -658,21 +662,46 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     setGauge(result.qber, qberThreshold);
     await delay(500);
 
-    if (result.eveDetected) {
+    // Not reachable with the fixed 50% sacrifice rate, but the core's contract
+    // includes it, so handle it rather than silently misreporting it as Eve.
+    if (result.status === 'aborted' && result.reason === 'insufficient-key-material') {
+      setStepContent(4, 'No key bits survived the sacrifice — nothing to derive a key from.');
+      setStepState(4, 'error');
+      setResultBanner('detected', '✗ ABORT — no key material retained.');
+      updateCounters(nPhotons, siftedLen, sacrificedCount, errorCount, 0);
+      return;
+    }
+
+    if (result.status === 'aborted') {
+      // The verdict reports what Alice and Bob actually observe — excess
+      // disturbance — not who caused it: they cannot tell Eve from noise.
+      // Only this simulation knows the ground truth, so it is reported as
+      // simulation commentary, conditioned on whether Eve was really on the
+      // line. That matters because a no-Eve run at 5% noise with a 5%
+      // threshold trips this abort regularly, and the old text blamed a
+      // nonexistent eavesdropper for it.
+      const cause = evePresent
+        ? `Reason: QBER reached the threshold. In this simulated run the\n` +
+          `        errors came from Eve measuring photons in random bases —\n` +
+          `        full intercept-resend pushes QBER toward ~25%.`
+        : `Reason: QBER reached the threshold. In this simulated run the\n` +
+          `        errors came from channel noise — no Eve was on the line.\n` +
+          `        Alice and Bob cannot tell noise from eavesdropping, so\n` +
+          `        they abort either way.`;
       setStepContent(4,
         `Sacrificing ${sacrificedCount} sifted bits for QBER check...\n` +
         `Errors found: ${errorCount} of ${sacrificedCount} sacrificed bits\n` +
         `QBER: ${qberPct}%\n` +
         `Threshold: ${threshPct}%\n` +
-        `Status: ✗ EAVESDROPPER DETECTED — Abort. Key discarded.\n` +
-        `Reason: QBER reached the threshold. Eve introduced errors by\n` +
-        `        measuring photons in random bases.\n` +
-        `        (Eve's random basis choices cause ~25% QBER on full intercept)`
+        `Status: ✗ ABORT — excess disturbance. Key discarded.\n` +
+        cause
       );
       setStepState(4, 'error');
-      setResultBanner('detected', `✗ EAVESDROPPER DETECTED — QBER ${qberPct}% is at or above the ${threshPct}% threshold. Key discarded.`);
+      setResultBanner('detected', `✗ ABORT — QBER ${qberPct}% is at or above the ${threshPct}% threshold. Excess disturbance; key discarded.`);
       setCaption(
-        `<strong>Eve detected.</strong> QBER ${qberPct}% reaches the ${threshPct}% threshold — the errors you watched Eve inject add up. Alice and Bob throw the key away and try again. That detectability is the whole point of BB84.`
+        evePresent
+          ? `<strong>Run aborted.</strong> QBER ${qberPct}% reaches the ${threshPct}% threshold — the errors you watched Eve inject add up. Alice and Bob only see excess disturbance, so they discard the key and try again. That detectability is the whole point of BB84.`
+          : `<strong>Run aborted.</strong> QBER ${qberPct}% reaches the ${threshPct}% threshold — from channel noise alone; no Eve was on the line. Alice and Bob cannot tell noise from eavesdropping, so they discard the key either way.`
       );
       updateCounters(nPhotons, siftedLen, sacrificedCount, errorCount, 0);
       return;
@@ -683,12 +712,14 @@ async function runProtocol(evePresent: boolean): Promise<void> {
       `Errors found: ${errorCount}\n` +
       `QBER: ${qberPct}%\n` +
       `Threshold: ${threshPct}%\n` +
-      `Status: ✓ CHANNEL CLEAN — No eavesdropper detected`
+      `Status: ✓ TEST PASSED — QBER below threshold\n` +
+      `Note: a passed sample bounds how much an eavesdropper could have\n` +
+      `      learned; it cannot prove nobody listened.`
     );
     setStepState(4, 'done');
-    setResultBanner('clean', `✓ CHANNEL CLEAN — QBER ${qberPct}% below ${threshPct}% threshold. Proceeding to key derivation.`);
+    setResultBanner('clean', `✓ TEST PASSED — QBER ${qberPct}% below ${threshPct}% threshold. Proceeding to key derivation.`);
     setCaption(
-      `<strong>Channel clean.</strong> QBER ${qberPct}% is under the ${threshPct}% threshold — no eavesdropper detectable. Alice and Bob keep the sifted key and finish deriving a shared secret.`
+      `<strong>Test passed.</strong> QBER ${qberPct}% is under the ${threshPct}% threshold — low enough to proceed, though a sampled test bounds an eavesdropper rather than ruling one out. Alice and Bob keep the sifted key and finish deriving a shared secret.`
     );
     updateCounters(nPhotons, siftedLen, sacrificedCount, errorCount, result.rawFinalKey.length);
     await delay(300);

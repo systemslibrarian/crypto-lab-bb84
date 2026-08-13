@@ -16,13 +16,37 @@ export interface Photon {
   isError?: boolean;
 }
 
-export interface BB84Result {
+/**
+ * The result is a discriminated union on `status`, so that key material does
+ * not even exist on an aborted run. `runBB84` used to derive both final keys
+ * before anyone looked at `eveDetected`; the UI refused to display or use
+ * them, but the core was not fail-closed — a transcript that failed parameter
+ * estimation still flowed into privacy amplification. Now key derivation is
+ * only reachable on the accepted path.
+ */
+export interface BB84Transcript {
   photons: Photon[];
   siftedKey: Bit[];
   siftedIndices: number[];
   sacrificedBits: number;
   qber: number;
+  /** True when the sampled QBER is at or above the abort threshold. */
   eveDetected: boolean;
+}
+
+export interface BB84Aborted extends BB84Transcript {
+  status: 'aborted';
+  /**
+   * 'qber-threshold': the sampled disturbance reached the abort threshold.
+   * 'insufficient-key-material': nothing was retained after the sacrifice
+   * (e.g. a 100% sacrifice rate), so there is nothing to derive a key from.
+   * The old code hashed the empty raw key into a FIXED 256-bit value instead.
+   */
+  reason: 'qber-threshold' | 'insufficient-key-material';
+}
+
+export interface BB84Accepted extends BB84Transcript {
+  status: 'accepted';
   /** Bob's retained bits (his detector readings) after the QBER sacrifice. */
   rawFinalKey: Bit[];
   /** Alice's bits at the same retained positions. Equal to Bob's only where no error occurred. */
@@ -43,6 +67,8 @@ export interface BB84Result {
   keyLengthBits: number;
 }
 
+export type BB84Result = BB84Accepted | BB84Aborted;
+
 const RECTILINEAR: Basis = 'rectilinear';
 const DIAGONAL: Basis = 'diagonal';
 
@@ -58,6 +84,16 @@ function randomBytes(n: number): Uint8Array {
   const bytes = new Uint8Array(n);
   crypto.getRandomValues(bytes);
   return bytes;
+}
+
+function randomUint32(n: number): Uint32Array {
+  const out = new Uint32Array(n);
+  // getRandomValues caps a single request at 65536 bytes (16384 uint32s).
+  const chunk = 16384;
+  for (let i = 0; i < n; i += chunk) {
+    crypto.getRandomValues(out.subarray(i, Math.min(n, i + chunk)));
+  }
+  return out;
 }
 
 function randomBitFromByte(byte: number): Bit {
@@ -112,6 +148,11 @@ function bitsToBytes(bits: Bit[], minBytes = 16): Uint8Array {
  * 256-bit digest.
  */
 export async function privacyAmplification(rawKey: Bit[], qber: number): Promise<Uint8Array> {
+  // An empty raw key used to hash deterministic zero material into a FIXED
+  // 256-bit value — a "key" derived from nothing. Refuse instead.
+  if (rawKey.length === 0) {
+    throw new Error('privacy amplification requires at least one raw key bit');
+  }
   const targetBits = Math.max(256, Math.floor(rawKey.length * (1 - qber * 2)));
   const targetBytes = Math.ceil(targetBits / 8);
   const keyMaterial = bitsToBytes(rawKey, 16);
@@ -172,7 +213,12 @@ export async function runBB84(
   const eveRandom = evePresent ? randomBytes(safeN) : new Uint8Array(safeN);
   const mismatchedOutcomeRandom = randomBytes(safeN);
   const eveMismatchOutcomeRandom = evePresent ? randomBytes(safeN) : new Uint8Array(safeN);
-  const noiseRandom = randomBytes(safeN);
+  const noiseRandom = randomUint32(safeN);
+  // Compare a uniform 32-bit draw against a 32-bit threshold. The old form,
+  // `randomByte < safeNoise * 256`, rounded every rate up to the next multiple
+  // of 1/256: the 0.5% slider setting actually flipped bits at 2/256 ≈ 0.78%
+  // and 1% at 3/256 ≈ 1.17%. At 32 bits the rounding error is below 2^-32.
+  const noiseThreshold = Math.floor(safeNoise * 2 ** 32);
 
   const photons: Photon[] = [];
 
@@ -211,7 +257,7 @@ export async function runBB84(
       bobBit = randomBitFromByte(mismatchedOutcomeRandom[i]);
     }
 
-    if (noiseRandom[i] < safeNoise * 256) {
+    if (noiseRandom[i] < noiseThreshold) {
       bobBit = (1 - bobBit) as Bit;
     }
 
@@ -258,6 +304,22 @@ export async function runBB84(
   // described.
   const eveDetected = qber >= safeThreshold;
 
+  const transcript: BB84Transcript = {
+    photons,
+    siftedKey,
+    siftedIndices,
+    sacrificedBits: sacrificedCount,
+    qber,
+    eveDetected,
+  };
+
+  // Fail closed: a transcript that failed parameter estimation never reaches
+  // key derivation. The keys used to be derived unconditionally and merely
+  // hidden by the UI.
+  if (eveDetected) {
+    return { ...transcript, status: 'aborted', reason: 'qber-threshold' };
+  }
+
   const postSacrificeIndices = siftedIndices.slice(sacrificedCount);
   const rawFinalKey = postSacrificeIndices.map((idx) => photons[idx].bobBit);
   // Alice's side of the same retained positions. Deriving it is the only way to
@@ -272,6 +334,13 @@ export async function runBB84(
     }
   }
 
+  // A 100% sacrifice rate (or an empty sifted key) retains nothing. The old
+  // code fed the empty raw key to privacy amplification and returned a fixed
+  // 256-bit "key" derived from no key material at all.
+  if (rawFinalKey.length === 0) {
+    return { ...transcript, status: 'aborted', reason: 'insufficient-key-material' };
+  }
+
   const finalKey = await privacyAmplification(rawFinalKey, qber);
   const aliceFinalKey = await privacyAmplification(rawFinalKeyAlice, qber);
   const keysAgree =
@@ -279,12 +348,8 @@ export async function runBB84(
     finalKey.every((byte, i) => byte === aliceFinalKey[i]);
 
   return {
-    photons,
-    siftedKey,
-    siftedIndices,
-    sacrificedBits: sacrificedCount,
-    qber,
-    eveDetected,
+    ...transcript,
+    status: 'accepted',
     rawFinalKey,
     rawFinalKeyAlice,
     residualErrors,

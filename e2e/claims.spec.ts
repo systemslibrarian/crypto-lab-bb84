@@ -77,7 +77,7 @@ test('a clean run headline is the QBER the page itself computed', async ({ page 
   await expect(banner).not.toHaveClass(/\bdetected\b/);
 
   const bannerText = await textOf(page, '#result-banner');
-  const m = bannerText.match(/✓ CHANNEL CLEAN — QBER ([\d.]+)% below ([\d.]+)% threshold/);
+  const m = bannerText.match(/✓ TEST PASSED — QBER ([\d.]+)% below ([\d.]+)% threshold/);
   const bannerQberText = (expect(m, 'banner did not match the clean shape').not.toBeNull(), m![1]);
   const bannerQber = num(m, 1, 'banner QBER');
   const bannerThreshold = num(m, 2, 'banner threshold');
@@ -99,7 +99,9 @@ test('a clean run headline is the QBER the page itself computed', async ({ page 
   const pct = (errors / sacrificed) * 100;
   expect(bannerQberText).toBe(pct.toFixed(2));
   expect(step4).toContain(`QBER: ${pct.toFixed(2)}%`);
-  expect(step4).toContain('CHANNEL CLEAN');
+  expect(step4).toContain('TEST PASSED');
+  // The pass is scoped to what a sampled test can actually establish.
+  expect(step4).toContain('it cannot prove nobody listened');
 
   // 4. The gauge, the counters and the caption report the same run. (The gauge
   // clamps at 50%, which no reachable QBER here comes near.)
@@ -172,9 +174,12 @@ test('an eavesdropper run reaches the detected state and names the cause', async
   await expect(banner).toHaveClass(/\bdetected\b/);
   await expect(banner).not.toHaveClass(/\bclean\b/);
 
+  // The verdict claims what Alice and Bob observe (excess disturbance), not
+  // that they identified Eve — they cannot tell her from noise. The Eve
+  // attribution below is simulation ground truth, and this run really had her.
   const bannerText = await textOf(page, '#result-banner');
   const m = bannerText.match(
-    /✗ EAVESDROPPER DETECTED — QBER ([\d.]+)% is at or above the ([\d.]+)% threshold\. Key discarded\./,
+    /✗ ABORT — QBER ([\d.]+)% is at or above the ([\d.]+)% threshold\. Excess disturbance; key discarded\./,
   );
   expect(m, 'banner did not match the detected shape').not.toBeNull();
   const qberText = m![1];
@@ -188,11 +193,12 @@ test('an eavesdropper run reaches the detected state and names the cause', async
   expect(qber, 'a "detected" verdict whose QBER is below its own threshold')
     .toBeGreaterThanOrEqual(threshold);
 
-  // The cause is named, not just the outcome.
+  // The cause is named, not just the outcome — and this run had Eve, so the
+  // simulation's ground-truth commentary must attribute the errors to her.
   const step4 = await textOf(page, '#step-4-body');
-  expect(step4).toContain('EAVESDROPPER DETECTED — Abort. Key discarded.');
+  expect(step4).toContain('Status: ✗ ABORT — excess disturbance. Key discarded.');
   expect(step4).toContain('Reason: QBER reached the threshold');
-  expect(step4).toContain('measuring photons in random bases');
+  expect(step4).toContain('errors came from Eve measuring photons in random bases');
   await expect(page.locator('#step-4')).toHaveClass(/error-step/);
   await expect(page.locator('#step-4')).not.toHaveClass(/\bdone\b/);
 
@@ -206,7 +212,7 @@ test('an eavesdropper run reaches the detected state and names the cause', async
   expect(await textOf(page, '#gauge-label')).toBe(`${pct.toFixed(1)}%`);
   expect(await textOf(page, '#cnt-error-pct')).toBe(pct.toFixed(1));
   const caption = await textOf(page, '#channel-caption');
-  expect(caption).toContain('Eve detected');
+  expect(caption).toContain('Run aborted');
   expect(caption).toContain(`${pct.toFixed(2)}%`);
   expect(caption).toContain(`${threshold.toFixed(1)}%`);
   // Over threshold means the needle must be the "red" colour this theme defines,
@@ -266,8 +272,39 @@ test('a noisy channel ends at the AES-GCM tag check and names the missing step',
   // This is a step-6 failure, not an Eve detection: the channel verdict is still
   // clean, so the two surfaces are not contradicting each other.
   await expect(page.locator('#result-banner')).toHaveClass(/\bclean\b/);
-  expect(await textOf(page, '#result-banner')).toContain('CHANNEL CLEAN');
+  expect(await textOf(page, '#result-banner')).toContain('TEST PASSED');
   await expect(page.locator('#step-4')).toHaveClass(/\bdone\b/);
+});
+
+test('a noise-only abort reports disturbance without blaming an eavesdropper', async ({ page }) => {
+  await openStill(page);
+  // 5% noise against a 5% threshold at 64 photons: the sampled QBER reaches
+  // the threshold in roughly half of runs (the sacrifice sample is ~16 bits,
+  // so one flipped bit is already 6.25%). Retry rather than assert a coin
+  // flip; ten consecutive misses would be ~0.1%.
+  let aborted = false;
+  for (let attempt = 0; attempt < 10 && !aborted; attempt += 1) {
+    await runProtocol(page, { eve: false, photons: 64, noise: 5, threshold: 5 });
+    aborted = (await page.locator('#result-banner.detected').count()) > 0;
+  }
+  expect(aborted, 'ten 5%-noise runs never reached a 5% threshold — implausible').toBe(true);
+
+  // The old page blamed this state on an eavesdropper ("EAVESDROPPER
+  // DETECTED ... Eve introduced errors by measuring photons in random
+  // bases") — with no Eve on the line. The verdict must claim only the
+  // observed disturbance, and the ground-truth commentary must name noise.
+  const step4 = await textOf(page, '#step-4-body');
+  expect(step4).toContain('Status: ✗ ABORT — excess disturbance. Key discarded.');
+  expect(step4).toContain('errors came from channel noise — no Eve was on the line');
+  expect(step4).not.toContain('came from Eve measuring');
+  const caption = await textOf(page, '#channel-caption');
+  expect(caption).toContain('Run aborted');
+  expect(caption).toContain('no Eve was on the line');
+
+  // An abort is an abort regardless of cause: no key, no encryption.
+  expect(await textOf(page, '#cnt-key')).toBe('0');
+  await expect(page.locator('#btn-encrypt')).toBeDisabled();
+  expect(await textOf(page, '#step-5-body')).toBe('');
 });
 
 // ── Counters and the minimap ───────────────────────────────────────────────
@@ -365,6 +402,10 @@ test('Eve is annotated in flight and the inspector decodes the photon it names',
   await page.fill('#sl-threshold', '11');
   await page.click('#btn-run-eve');
 
+  // While the run is active, Reset would be a silent no-op (`resetAll` returns
+  // early) — so the control must be disabled, not just inert.
+  await expect(page.locator('#btn-reset')).toBeDisabled();
+
   // A landed-and-clickable photon carries an accessible name describing exactly
   // what Alice encoded; clicking it must put the same reading in the inspector.
   const photon = page.locator('#photon-group g[data-inspectable]').first();
@@ -422,10 +463,10 @@ test('a new run replaces the previous verdict instead of outliving it', async ({
   const banner = page.locator('#result-banner');
   await expect(banner).toHaveClass(/\bclean\b/);
   await expect(banner).not.toHaveClass(/\bdetected\b/);
-  expect(await textOf(page, '#result-banner')).not.toContain('EAVESDROPPER DETECTED');
-  expect(await textOf(page, '#step-4-body')).not.toContain('EAVESDROPPER DETECTED');
+  expect(await textOf(page, '#result-banner')).not.toContain('ABORT');
+  expect(await textOf(page, '#step-4-body')).not.toContain('ABORT');
   await expect(page.locator('#step-4')).not.toHaveClass(/error-step/);
-  expect(await textOf(page, '#channel-caption')).not.toContain('Eve detected');
+  expect(await textOf(page, '#channel-caption')).not.toContain('Run aborted');
 });
 
 test('Reset clears the run and leaves every control live', async ({ page }) => {

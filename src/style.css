@@ -771,6 +771,14 @@ body {
 .row-green td, .row-green th { color: var(--safe); }
 .row-cyan td, .row-cyan th { color: var(--alice); }
 
+.table-footnote {
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin: -8px 0 16px;
+}
+
 .explainer {
   border: 1px solid var(--border);
   border-radius: 6px;

@@ -14,7 +14,7 @@ import { auditContrast, formatContrastFailures } from './contrast';
  *    empty, the minimap has no ticks, the sifting table shows its empty state,
  *    the QBER gauge reads 0.0%, and the Eve node is `display:none`. None of the
  *    states the simulation actually produces — the clean verdict, the
- *    EAVESDROPPER DETECTED abort with its `.error-step`, a noisy channel, the
+ *    excess-disturbance ABORT with its `.error-step`, a noisy channel, the
  *    encrypted round trip, the post-reset empty state — existed at the moment
  *    the old gate scanned. Each scan below drives the page into a named state
  *    and asserts that state rendered before axe runs.

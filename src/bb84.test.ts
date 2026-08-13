@@ -1,11 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runBB84, privacyAmplification } from './bb84.ts';
+import type { BB84Accepted, BB84Result } from './bb84.ts';
 import { encryptWithBB84Key, decryptWithBB84Key } from './encrypt.ts';
 
 // Statistical tests use a large photon count so sample means are tight; bounds
 // are wide enough to make a spurious failure vanishingly unlikely.
 const N = 4000;
+
+// Key material only exists on the accepted branch of the result union; this
+// narrows (and asserts) before a test touches it.
+function assertAccepted(r: BB84Result): asserts r is BB84Accepted {
+  assert.equal(r.status, 'accepted', `expected an accepted run, got ${r.status}`);
+}
 
 test('clean channel (no Eve, no noise) yields QBER 0 and is not flagged', async () => {
   const r = await runBB84(N, false, 0, 0.11, 0.5);
@@ -52,6 +59,7 @@ test('privacy amplification expands past one digest without repeating blocks', a
 
 test('AES-256-GCM round-trips a message under the derived key', async () => {
   const r = await runBB84(N, false, 0, 0.11, 0.5);
+  assertAccepted(r);
   const msg = 'So whether you eat or drink — BB84 🔐';
   const enc = await encryptWithBB84Key(r.finalKey, msg);
   const dec = await decryptWithBB84Key(r.finalKey, enc.ciphertext, enc.iv);
@@ -60,6 +68,7 @@ test('AES-256-GCM round-trips a message under the derived key', async () => {
 
 test('GCM authentication rejects a tampered ciphertext', async () => {
   const r = await runBB84(N, false, 0, 0.11, 0.5);
+  assertAccepted(r);
   const enc = await encryptWithBB84Key(r.finalKey, 'tamper me');
   // Flip the first byte of the ciphertext hex.
   const flipped = (enc.ciphertext[0] === '0' ? '1' : '0') + enc.ciphertext.slice(1);
@@ -73,6 +82,7 @@ test('GCM authentication rejects a tampered ciphertext', async () => {
 
 test('a perfect channel leaves Alice and Bob holding the same key', async () => {
   const r = await runBB84(N, false, 0, 0.11, 0.5);
+  assertAccepted(r);
   assert.equal(r.residualErrors, 0, 'no noise and no Eve means no retained-bit disagreement');
   assert.equal(r.keysAgree, true);
   assert.deepEqual([...r.aliceFinalKey], [...r.finalKey]);
@@ -80,6 +90,7 @@ test('a perfect channel leaves Alice and Bob holding the same key', async () => 
 
 test('Alice encrypts and Bob decrypts on a perfect channel', async () => {
   const r = await runBB84(N, false, 0, 0.11, 0.5);
+  assertAccepted(r);
   const msg = 'So whether you eat or drink — BB84 🔐';
   const enc = await encryptWithBB84Key(r.aliceFinalKey, msg);
   const dec = await decryptWithBB84Key(r.finalKey, enc.ciphertext, enc.iv);
@@ -89,6 +100,7 @@ test('Alice encrypts and Bob decrypts on a perfect channel', async () => {
 test('channel noise leaves the two keys different, and Bob cannot decrypt', async () => {
   // 2% noise over ~1000 retained bits: the chance of zero flips is ~e^-20.
   const r = await runBB84(N, false, 0.02, 0.11, 0.5);
+  assertAccepted(r);
   assert.ok(r.residualErrors > 0, `expected retained-bit disagreements, got ${r.residualErrors}`);
   assert.equal(r.keysAgree, false, 'different raw bits must not amplify to the same key');
   const enc = await encryptWithBB84Key(r.aliceFinalKey, 'no reconciliation pass here');
@@ -102,6 +114,7 @@ test('an undetected-Eve run also fails to produce a shared key', async () => {
   // Threshold pushed above 25% so Eve is NOT flagged; the keys still diverge.
   const r = await runBB84(N, true, 0, 0.9, 0.5);
   assert.equal(r.eveDetected, false, 'threshold deliberately set too high to flag her');
+  assertAccepted(r);
   assert.ok(r.residualErrors > 0);
   assert.equal(r.keysAgree, false);
 });
@@ -163,6 +176,57 @@ test('a key and the same key repeated derive DIFFERENT final keys', async () => 
   assert.notEqual(a, b, 'a key and its double must not collide');
   assert.notEqual(b, c, 'a key and its quadruple must not collide');
   assert.equal(a.length > 0 && b.length > 0 && c.length > 0, true);
+});
+
+// ── Fail-closed key derivation ────────────────────────────────────────────
+// `runBB84` used to derive Alice's and Bob's final keys BEFORE anyone looked
+// at `eveDetected`; the UI refused to show them, but the core still ran
+// privacy amplification over a transcript that had failed parameter
+// estimation. The result union now makes the aborted branch key-free.
+
+test('an aborted run carries no key material at all', async () => {
+  const r = await runBB84(N, true, 0, 0.11, 0.5);
+  assert.equal(r.eveDetected, true, 'full intercept-resend must trip an 11% threshold at N=4000');
+  assert.equal(r.status, 'aborted');
+  assert.equal(r.status === 'aborted' && r.reason, 'qber-threshold');
+  for (const field of ['finalKey', 'aliceFinalKey', 'rawFinalKey', 'rawFinalKeyAlice', 'keysAgree']) {
+    assert.equal(field in r, false, `aborted transcripts must not carry "${field}"`);
+  }
+});
+
+test('a 100% sacrifice rate aborts instead of deriving a key from nothing', async () => {
+  const r = await runBB84(N, false, 0, 0.11, 1);
+  assert.equal(r.status, 'aborted');
+  assert.equal(r.status === 'aborted' && r.reason, 'insufficient-key-material');
+  assert.equal('finalKey' in r, false, 'no retained bits must mean no key');
+});
+
+test('privacy amplification rejects an empty raw key', async () => {
+  // The old code hashed deterministic zero material and returned the same
+  // fixed 256-bit "key" for every empty input.
+  await assert.rejects(() => privacyAmplification([], 0), /at least one raw key bit/);
+});
+
+// ── Noise sampling is unbiased ────────────────────────────────────────────
+// Noise used to be applied as `randomByte < rate * 256`, rounding every rate
+// up to the next multiple of 1/256: a selected 0.2% actually flipped bits at
+// 1/256 ≈ 0.39%, nearly double. On a clean no-Eve channel every sacrificed-bit
+// error IS a noise flip, so the sampled QBER measures the applied rate
+// directly. Aggregated over 30 runs (~30,000 sacrificed bits) the old code
+// lands near 0.39% and the fix near 0.2%; the 0.28% cutoff separates the two
+// by ~3 sigma each way.
+test('a 0.2% noise rate flips ~0.2% of bits, not the next 1/256 step up', async () => {
+  let errors = 0;
+  let sacrificed = 0;
+  for (let i = 0; i < 30; i += 1) {
+    // Threshold 1 so the run is never aborted by its own noise.
+    const r = await runBB84(N, false, 0.002, 1, 0.5);
+    errors += Math.round(r.qber * r.sacrificedBits);
+    sacrificed += r.sacrificedBits;
+  }
+  const rate = errors / sacrificed;
+  assert.ok(rate < 0.0028, `noise rate ${rate} shows the old 1/256 rounding bias`);
+  assert.ok(rate > 0.0008, `noise rate ${rate} is implausibly low for 0.2%`);
 });
 
 test('privacy amplification stays deterministic for the same input', async () => {

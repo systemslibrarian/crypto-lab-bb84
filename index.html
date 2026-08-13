@@ -355,9 +355,10 @@
               <tr class="row-red"><th scope="row">ECDSA P-256</th><td>Discrete log</td><td>YES — Shor's algorithm</td></tr>
               <tr class="row-amber"><th scope="row">AES-256</th><td>Brute force</td><td>REDUCED — Grover (128-bit eff.)</td></tr>
               <tr class="row-green"><th scope="row">ML-KEM (Kyber)</th><td>Lattice</td><td>BELIEVED NO — unproven</td></tr>
-              <tr class="row-cyan"><th scope="row">BB84 QKD</th><td>Physics</td><td>NO — information-theoretic</td></tr>
+              <tr class="row-cyan"><th scope="row">BB84 QKD</th><td>Physics</td><td>NO — information-theoretic*</td></tr>
             </tbody>
           </table>
+          <p class="table-footnote">* Assuming an authenticated classical channel, devices that match the security proof's model, and correct post-processing — practical attacks target the implementation. A message later encrypted with AES-GCM (step 6) is protected computationally, not information-theoretically.</p>
 
           <!-- No-cloning explainer -->
           <div class="explainer" id="explainer-cloning">
@@ -374,24 +375,33 @@ the photon and let the original pass through untouched.
 Measurement disturbance: measuring in the wrong basis collapses the state and
 randomizes the outcome. This is what lets Alice and Bob detect Eve.
 
-No-cloning removes Eve's silent option; measurement disturbance exposes the one
-she has left.
+No-cloning removes Eve's copy-and-forward option; measurement disturbance
+exposes the attack this demo simulates.
 
-Eve's only option: measure the photon and resend a new one.
-But she does not know Alice's basis. If she guesses wrong:
+This panel models the simplest full attack, intercept-resend: measure each
+photon and send Bob a replacement.
+But Eve does not know Alice's basis. If she guesses wrong:
   • She collapses the photon to her basis
   • She resends in her measured state
   • Bob, using Alice's correct basis, gets a random result 50% of the time
-  • This produces a ~25% QBER when Eve intercepts all photons
+  • Full interception produces a ~25% QBER — the expected disturbance for
+    intercept-resend in the ideal four-state model
 
-Even with a quantum computer, Eve cannot do better.
-The security is guaranteed by physics, not by computation.</div>
+A general Eve has subtler strategies: entangling probes, storing quantum
+states until the bases are announced, collective measurements across many
+signals, or attacks on the hardware itself. BB84's security does not rest on
+intercept-resend being Eve's best move — it rests on a security proof that
+bounds Eve's information from the observed error rate under an explicit model
+of the devices. Physics supplies the constraints that proof uses; it does not
+by itself secure the equipment around the channel.</div>
           </div>
 
           <!-- Limitations -->
           <div class="info-block">
             <h3 class="info-block-title">REAL-WORLD LIMITATIONS</h3>
-            <div class="info-block-body">✗ Distance: ~100km max in fiber without quantum repeaters
+            <div class="info-block-body">✗ Distance: fiber loss cuts the key rate sharply with distance;
+  practical range depends on protocol and detectors, and long
+  links lean on trusted relays or newer designs (twin-field QKD)
 ✗ Infrastructure: requires single-photon sources and detectors
 ✗ Key distribution only: does not provide authentication or signatures
 ✗ Trusted nodes: long-distance networks require trusted relay points
