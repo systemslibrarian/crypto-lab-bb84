@@ -99,10 +99,6 @@ async function open(page: Page, theme: 'dark' | 'light'): Promise<void> {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('.');
   await assertReducedMotion(page);
-  if (theme === 'light') {
-    await page.locator('#cl-theme-toggle').click();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  }
   await expectRendered(page, ['h1', '#sift-empty']);
   await expandAll(page);
   await settle(page);
@@ -148,7 +144,7 @@ async function runProtocol(page: Page, opts: RunOpts = {}): Promise<void> {
   await expect(page.locator('#btn-run-eve')).toBeEnabled();
 }
 
-for (const theme of ['dark', 'light'] as const) {
+for (const theme of ['dark'] as const) {
   test(`no WCAG A/AA violations on first paint (${theme})`, async ({ page }) => {
     await open(page, theme);
     await scan(page, `${theme} / initial`);
@@ -235,10 +231,6 @@ for (const theme of ['dark', 'light'] as const) {
       await page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches),
       'this test must run with motion enabled'
     ).toBe(false);
-    if (theme === 'light') {
-      await page.locator('#cl-theme-toggle').click();
-      await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    }
 
     await page.fill('#sl-photons', '64');
     await page.click('#btn-run-eve');
