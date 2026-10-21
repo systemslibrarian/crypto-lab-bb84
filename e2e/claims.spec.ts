@@ -160,7 +160,8 @@ test('a clean channel really round-trips the message the user typed', async ({ p
   expect(widths.length).toBe(2);
   expect(rawBits).toBeLessThan(256);
   expect(widths[1]).toBeGreaterThan(widths[0]);
-  expect(step5).toContain('stretching');
+  expect(step5).toContain('at most');
+  expect(step5).toContain('no finite-key privacy-amplification bound');
 });
 
 // ── The failure paths ──────────────────────────────────────────────────────

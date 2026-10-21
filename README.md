@@ -2,7 +2,7 @@
 
 ## What It Is
 
-Browser-based simulation of the BB84 Quantum Key Distribution protocol (Bennett & Brassard, 1984). BB84 is the first quantum cryptography protocol, and one of a family of QKD key-exchange methods (E91, B92 and others followed) whose security rests on physics — specifically the no-cloning theorem — rather than on computational hardness assumptions. This demo simulates six steps of the protocol classically: photon preparation, measurement, basis sifting, QBER error estimation, SHA-256 privacy amplification, and AES-256-GCM encryption with the derived key. Eve's eavesdropping is detectable via the ~25% QBER she introduces.
+Browser-based simulation of the BB84 Quantum Key Distribution protocol (Bennett & Brassard, 1984). BB84 is the first quantum cryptography protocol, and one of a family of QKD key-exchange methods (E91, B92 and others followed) whose security rests on physics — specifically the no-cloning theorem — rather than on computational hardness assumptions. This demo simulates six steps of the protocol classically: photon preparation, measurement, basis sifting, QBER error estimation, SHA-256 key derivation (an illustrative stand-in for privacy amplification), and AES-256-GCM encryption with the derived key. Eve's eavesdropping is detectable via the ~25% QBER she introduces.
 
 It deliberately leaves out the seventh step, **information reconciliation** (error correction), and shows you the hole rather than papering over it. Alice and Bob each derive their own key from their own bits, and step 6 encrypts under Alice's key and decrypts under Bob's — so whenever noise or an undetected Eve flipped a retained bit, the two keys differ and AES-GCM's tag check refuses the message. At the default 256 photons and 1% noise that happens in roughly half of runs (measured over 300 simulated runs); set noise to 0% and run without Eve and the keys agree every time. That failure is the lesson: sifting plus privacy amplification alone does not give you a shared key over a real channel.
 
@@ -20,7 +20,7 @@ It deliberately leaves out the seventh step, **information reconciliation** (err
 
 Run the BB84 protocol with or without an eavesdropper (Eve) and watch photons animate through the quantum channel in real time. Adjust the number of photons (64–512), channel noise rate, and QBER detection threshold with sliders. After key exchange completes, the demo automatically encrypts a user-supplied message with AES-256-GCM under Alice's derived key and attempts to decrypt it under Bob's — a round trip that only succeeds when the two keys really are identical.
 
-Note the scale honestly: at 64–512 photons the raw key retained after sifting and the QBER sacrifice is 16–128 bits, so the 256-bit AES key SHA-256 produces is 256 bits *wide* while carrying at most that many bits of entropy. Privacy amplification is stretching here, not compressing. A real link sends photons by the million, which is where the compression that gives privacy amplification its name actually happens.
+The retained-key length varies with the sampled bases; 16–128 retained bits is the expectation across the 64–512-photon settings, not a hard range. The SHA-256 output is 256 bits wide and has at most the smaller of 256 and the actual retained-bit count in entropy, potentially less given Eve's information. Hashing does not create secrecy. This step is illustrative key derivation, not proven QKD privacy amplification: the lab does not estimate conditional min-entropy or choose an extractor output length from a finite-key security bound. See [Renner and König, *Universally composable privacy amplification against quantum adversaries*](https://arxiv.org/abs/quant-ph/0403133).
 
 To make the protocol's mechanics legible rather than decorative, the demo also shows:
 
@@ -28,14 +28,14 @@ To make the protocol's mechanics legible rather than decorative, the demo also s
 2. **A live per-photon sifting table** — Alice's bit, Alice's basis, Bob's independently-chosen basis, and the KEEP/DISCARD outcome — highlighting each column as its photon lands, so the ~50% survival rate reads as a coin-flip consequence rather than a magic number.
 3. **Inline Eve annotations**: on an Eve run, each wrong-basis interception is captioned at the moment it happens ("Eve guessed ⊗, Alice used ⊕ → rotated"), and a running tally ties those interceptions to the QBER climbing toward ~25%.
 4. **A per-step caption** above the channel that narrates the step in progress in plain language, and **a minimap** of every photon's outcome (kept / discarded / errored) so the sampled detail views reconcile with the aggregate counters.
-5. **A privacy-amplification visual** showing the raw sifted key distilled by SHA-256 into the final 256-bit key, so the step is more than an opaque hex dump.
+5. **A key-derivation visual** comparing the retained-bit count with the 256-bit SHA-256 output width, while stating the entropy upper bound and the absence of a privacy-amplification security analysis.
 
 ## What Can Go Wrong
 
 - **Unauthenticated classical channel:** BB84 needs an authenticated public channel for basis reconciliation; without authentication an active attacker can mount a man-in-the-middle on the sifting step.
 - **Channel noise vs. eavesdropping:** real QBER mixes natural noise with any eavesdropping, so the detection threshold trades false alarms against missed detection.
 - **Hardware side channels:** real photon sources leak — multi-photon pulses enable photon-number-splitting attacks, and detector-blinding attacks have broken deployed QKD links.
-- **Classical post-processing still matters:** error correction and privacy amplification must be done correctly, or the final key is not secret even when the QBER looks fine. This demo implements privacy amplification but no error correction, which is why a noisy run ends with Alice and Bob unable to talk to each other.
+- **Classical post-processing still matters:** error correction and privacy amplification must be done correctly, or the final key is not secret even when the QBER looks fine. This demo hashes the retained bits but implements neither information reconciliation nor a finite-key privacy-amplification proof. Retained-bit disagreement can therefore leave Alice and Bob with different AES keys.
 - **This is a classical simulation:** it models the protocol with a CSPRNG, not real quantum states, so it cannot provide the physical security guarantees of true QKD hardware.
 
 ## Real-World Usage

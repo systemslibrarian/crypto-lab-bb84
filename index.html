@@ -139,11 +139,12 @@
         <div class="cl-hero-main">
           <h1 class="cl-hero-title">BB84</h1>
           <p class="cl-hero-sub">Quantum Key Distribution · Bennett–Brassard 1984</p>
-          <p class="cl-hero-desc">Watch Alice send polarized photons in random bases, Bob measure and sift a shared key, and Eve's interception spike the QBER to ~25% and expose her.</p>
+          <p class="cl-hero-desc">Simulate preparation, measurement and sifting, then compare sampled error rates with and without an intercept-resend Eve; full interception gives about 25% QBER on an ideal noiseless channel.</p>
+          <p class="cl-hero-desc"><strong>Classical simulation — no photons or quantum security. SHA-256 key derivation here is not a security proof for privacy amplification.</strong></p>
         </div>
         <aside class="cl-hero-why" aria-label="Why it matters">
           <span class="cl-hero-why-label">WHY IT MATTERS</span>
-          <p class="cl-hero-why-text">QKD's secrecy rests on physics, not hard math, so a quantum computer that breaks RSA and ECDH cannot break it. Any eavesdropper unavoidably disturbs the photons, turning wiretapping into a detectable event.</p>
+          <p class="cl-hero-why-text">Under a specified device model, an authenticated classical channel and appropriate post-processing, QKD can bound an eavesdropper's knowledge without computational hardness assumptions. A finite error sample does not guarantee detection of every eavesdropper.</p>
         </aside>
       </header>
       <div class="sim-banner" role="status">SIMULATED — This demo simulates the BB84 protocol classically. No actual photons or quantum states are produced. Security claims assume a perfect implementation.</div>
@@ -305,7 +306,7 @@
             <div class="step-body" id="step-4-body"></div>
           </div>
           <div class="step" id="step-5" data-step="5">
-            <div class="step-header" tabindex="0" role="button" aria-expanded="false" aria-controls="step-5-body"><span class="step-arrow">▶</span> Step 5 — Privacy Amplification</div>
+            <div class="step-header" tabindex="0" role="button" aria-expanded="false" aria-controls="step-5-body"><span class="step-arrow">▶</span> Step 5 — Hash-Based Key Derivation</div>
             <div class="step-body" id="step-5-body"></div>
           </div>
           <div class="step" id="step-6" data-step="6">

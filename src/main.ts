@@ -713,20 +713,20 @@ async function runProtocol(evePresent: boolean): Promise<void> {
       `QBER: ${qberPct}%\n` +
       `Threshold: ${threshPct}%\n` +
       `Status: ✓ TEST PASSED — QBER below threshold\n` +
-      `Note: a passed sample bounds how much an eavesdropper could have\n` +
-      `      learned; it cannot prove nobody listened.`
+      `Note: this threshold test does not compute a finite-key secrecy bound;\n` +
+      `      it cannot prove nobody listened.`
     );
     setStepState(4, 'done');
     setResultBanner('clean', `✓ TEST PASSED — QBER ${qberPct}% below ${threshPct}% threshold. Proceeding to key derivation.`);
     setCaption(
-      `<strong>Test passed.</strong> QBER ${qberPct}% is under the ${threshPct}% threshold — low enough to proceed, though a sampled test bounds an eavesdropper rather than ruling one out. Alice and Bob keep the sifted key and finish deriving a shared secret.`
+      `<strong>Test passed.</strong> QBER ${qberPct}% is under the ${threshPct}% threshold — low enough for this demonstration to proceed. This threshold test does not quantify Eve's knowledge. Alice and Bob hash their own retained bits; their keys may still disagree.`
     );
     updateCounters(nPhotons, siftedLen, sacrificedCount, errorCount, result.rawFinalKey.length);
     await delay(300);
 
     // Step 5 — Privacy amplification
     setCaption(
-      `<strong>Step 5 — Privacy amplification.</strong> Even a clean-looking key can leak a few bits to Eve. Hashing the whole raw key with SHA-256 spreads whatever secrecy it has evenly across the output, so partial knowledge of individual bits buys Eve nothing.`
+      `<strong>Step 5 — Hash-based key derivation.</strong> SHA-256 maps the retained bits to AES key bytes. Hashing cannot create secret entropy or prove that Eve knows nothing. Real QKD privacy amplification requires a bound on Eve's information and a suitable extractor with an output length chosen from that bound; this demo does not implement that security analysis.`
     );
     setStepState(5, 'active');
     setStepContent(5, `Applying SHA-256 to raw key (${result.rawFinalKey.length} bits remaining after sacrifice)...`);
@@ -738,21 +738,15 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     lastRawKeyBits = result.rawFinalKey.length;
     const keyHex = hexEncode(amplifiedKey);
 
-    // Privacy-amplification visual: map the raw sifted key against the final
-    // key. Widths are proportional to the LARGER of the two so the comparison is
-    // honest — and at 64-512 photons the raw key is always shorter than 256
-    // bits, so what the visitor is watching is SHA-256 *stretching* a short key
-    // to AES-256 width, not compressing a long one. Say so, and state the
-    // entropy bound that follows, rather than implying 256 bits of secrecy.
+    // Compare retained input length with output width. These are bit counts,
+    // not a measurement of entropy conditional on Eve's information.
+    // Random sifting makes the retained length variable, not a fixed range.
     const rawBits = result.rawFinalKey.length;
     const finalBits = amplifiedKey.length * 8;
     const scale = Math.max(rawBits, finalBits, 1);
     const rawPct = Math.max(6, (rawBits / scale) * 100);
     const finalPct = Math.max(6, (finalBits / scale) * 100);
-    const shrank = rawBits > finalBits;
-    const finalNote = shrank
-      ? `Final key: ${finalBits} bits — SHA-256 squeezes the raw key down, crushing Eve's partial info out`
-      : `Final key: ${finalBits} bits wide, but only ${rawBits} bits of entropy — SHA-256 is stretching ${rawBits} raw bits to AES-256 width, not compressing. A real link sends millions of photons, where privacy amplification genuinely shrinks the key.`;
+    const finalNote = `Final key: ${finalBits} bits wide, with at most ${Math.min(rawBits, finalBits)} bits of entropy before accounting for Eve's knowledge. SHA-256 does not create secrecy; this demo has no finite-key privacy-amplification bound.`;
     setStepContent(5,
       `<div class="pa-visual">` +
       `<div class="pa-bar" style="width:${rawPct.toFixed(1)}%"></div>` +

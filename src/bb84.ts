@@ -127,25 +127,13 @@ function bitsToBytes(bits: Bit[], minBytes = 16): Uint8Array {
 }
 
 /**
- * Privacy amplification: compress the raw key with a cryptographic hash to
- * squeeze out the partial information an eavesdropper may hold.
+ * Illustrative hash-based key derivation, retaining the legacy function name.
+ * This is NOT a proven QKD privacy-amplification extractor. The heuristic
+ * QBER adjustment and 256-bit floor are not a conditional-min-entropy bound
+ * or a finite-key security analysis. Hashing cannot create secret entropy.
  *
- * The target length models the secret-key rate: starting from the raw key we
- * subtract a leakage term that grows with the QBER (a simplified ~2·QBER
- * fraction standing in for error-correction + privacy-amplification leakage),
- * with a 256-bit floor so the output can key AES-256.
- *
- * That floor matters for honesty: with the 64-512 photons this demo offers, the
- * raw key is at most ~128 bits, so the floor always wins and SHA-256 is
- * *stretching* the key rather than compressing it. The output is 256 bits wide
- * but carries at most `rawKey.length` bits of entropy. A real deployment sends
- * orders of magnitude more photons, where the subtraction bites and privacy
- * amplification genuinely shrinks the key.
- *
- * Output is derived by SHA-256 in counter mode (H(0‖m) ‖ H(1‖m) ‖ …) so that
- * keys longer than one digest are still pseudo-random rather than a repeated
- * 32-byte block. For the photon counts used here the result is the single
- * 256-bit digest.
+ * SHA-256 counter-mode blocks avoid repeating one digest when the requested
+ * output exceeds 256 bits. That output width is not a secrecy guarantee.
  */
 export async function privacyAmplification(rawKey: Bit[], qber: number): Promise<Uint8Array> {
   // An empty raw key used to hash deterministic zero material into a FIXED
