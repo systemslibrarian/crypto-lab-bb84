@@ -1,4 +1,13 @@
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+async function setRange(page: Page, selector: string, value: string): Promise<void> {
+  await page.locator(selector).evaluate((element, nextValue) => {
+    const input = element as HTMLInputElement;
+    input.value = nextValue;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }, value);
+}
 
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -7,8 +16,8 @@ test.beforeEach(async ({ page }) => {
 
 test('optional post-processing starts at zero assumptions and counts public disclosure', async ({ page }) => {
   await expect(page.locator('#btn-postprocess')).toBeDisabled();
-  await page.fill('#sl-photons', '512');
-  await page.fill('#sl-noise', '0');
+  await setRange(page, '#sl-photons', '512');
+  await setRange(page, '#sl-noise', '0');
   await page.click('#btn-run-clean');
   await expect(page.locator('#btn-run-clean')).toBeEnabled({ timeout: 120_000 });
   await expect(page.locator('#btn-postprocess')).toBeEnabled();
@@ -47,8 +56,8 @@ test('basis announcement comparison keeps knowledge separate from a correct gues
 });
 
 test('QBER-aborted runs cannot expose optional retained-bit processing', async ({ page }) => {
-  await page.fill('#sl-photons', '512');
-  await page.fill('#sl-noise', '0');
+  await setRange(page, '#sl-photons', '512');
+  await setRange(page, '#sl-noise', '0');
   await page.click('#btn-run-eve');
   await expect(page.locator('#btn-run-eve')).toBeEnabled({ timeout: 120_000 });
   await expect(page.locator('#result-banner')).toHaveClass(/detected/);
