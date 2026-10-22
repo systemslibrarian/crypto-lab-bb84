@@ -1,7 +1,8 @@
 import './style.css';
 import { runBB84 } from './bb84';
-import type { Photon } from './bb84';
+import type { BB84Accepted, Photon } from './bb84';
 import { encryptWithBB84Key, decryptWithBB84Key } from './encrypt';
+import { orderingExperiment, postprocessTeachingRun } from './teaching';
 
 // ── DOM refs ───────────────────────────────────────────────
 function $<T extends Element>(id: string): T {
@@ -47,6 +48,12 @@ const siftRowBBasis   = $<HTMLTableRowElement>('sift-row-bbasis');
 const siftRowOutcome  = $<HTMLTableRowElement>('sift-row-outcome');
 const minimap         = $<HTMLDivElement>('minimap');
 const minimapTitle    = $<HTMLSpanElement>('minimap-title');
+const assumedHmin = $<HTMLInputElement>('assumed-hmin');
+const btnPostprocess = $<HTMLButtonElement>('btn-postprocess');
+const postprocessResult = $<HTMLDivElement>('postprocess-result');
+const btnReceiptFirst = $<HTMLButtonElement>('btn-receipt-first');
+const btnBasesFirst = $<HTMLButtonElement>('btn-bases-first');
+const orderingResult = $<HTMLDivElement>('ordering-result');
 
 // ── State ──────────────────────────────────────────────────
 let running = false;
@@ -57,6 +64,7 @@ let amplifiedKey: Uint8Array | null = null;
 let aliceAmplifiedKey: Uint8Array | null = null;
 let lastResidualErrors = 0;
 let lastRawKeyBits = 0;
+let lastAccepted: BB84Accepted | null = null;
 // Count of wrong-basis Eve interceptions seen so far in the animated sample,
 // plus how many of those actually flipped Bob's bit — this is the running,
 // visible origin of the QBER during an Eve run.
@@ -557,6 +565,11 @@ async function runProtocol(evePresent: boolean): Promise<void> {
   btnEncrypt.disabled = true;
   amplifiedKey = null;
   aliceAmplifiedKey = null;
+  lastAccepted = null;
+  btnPostprocess.disabled = true;
+  assumedHmin.max = '0';
+  assumedHmin.value = '0';
+  postprocessResult.textContent = 'Awaiting an accepted exchange. A QBER abort has no retained key to process.';
 
   try {
     // Reset steps
@@ -651,7 +664,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
 
     // Step 4 — Error estimation
     setCaption(
-      `<strong>Step 4 — Error check.</strong> They sacrifice some kept bits to measure the QBER — the fraction that disagree. Natural noise is small; an eavesdropper forced to guess bases pushes it toward ~25%.`
+      `<strong>Step 4 — Error check.</strong> They sacrifice some kept bits to measure the QBER — the fraction that disagree. In this idealized full intercept-resend attack, Eve guesses bases and produces about 25% QBER without noise.`
     );
     setStepState(4, 'active');
     const sacrificedCount = result.sacrificedBits;
@@ -722,6 +735,10 @@ async function runProtocol(evePresent: boolean): Promise<void> {
       `<strong>Test passed.</strong> QBER ${qberPct}% is under the ${threshPct}% threshold — low enough for this demonstration to proceed. This threshold test does not quantify Eve's knowledge. Alice and Bob hash their own retained bits; their keys may still disagree.`
     );
     updateCounters(nPhotons, siftedLen, sacrificedCount, errorCount, result.rawFinalKey.length);
+    lastAccepted = result;
+    assumedHmin.max = String(result.rawFinalKeyAlice.length);
+    btnPostprocess.disabled = false;
+    postprocessResult.textContent = `Accepted run: ${result.rawFinalKeyAlice.length} retained bits and ${result.residualErrors} disagreements. The main run deliberately leaves these unreconciled. Enter a hypothetical min-entropy lower bound and compare.`;
     await delay(300);
 
     // Step 5 — Privacy amplification
@@ -852,6 +869,11 @@ function resetAll(): void {
   aliceAmplifiedKey = null;
   lastResidualErrors = 0;
   lastRawKeyBits = 0;
+  lastAccepted = null;
+  assumedHmin.max = '0';
+  assumedHmin.value = '0';
+  btnPostprocess.disabled = true;
+  postprocessResult.textContent = 'Run an accepted exchange above to inspect the retained bits.';
   btnEncrypt.disabled = true;
 
   for (let i = 1; i <= 6; i++) {
@@ -881,3 +903,47 @@ btnClean.addEventListener('click', () => { resetAll(); runProtocol(false); });
 btnEve.addEventListener('click', () => { resetAll(); runProtocol(true); });
 btnReset.addEventListener('click', resetAll);
 btnEncrypt.addEventListener('click', handleEncrypt);
+
+btnPostprocess.addEventListener('click', () => {
+  if (!lastAccepted) return;
+  const bound = assumedHmin.valueAsNumber;
+  if (!Number.isInteger(bound) || bound < 0 || bound > lastAccepted.rawFinalKeyAlice.length) {
+    postprocessResult.textContent = `Enter a whole number between 0 and ${lastAccepted.rawFinalKeyAlice.length} retained bits.`;
+    return;
+  }
+  const lesson = postprocessTeachingRun(lastAccepted.rawFinalKeyAlice, lastAccepted.rawFinalKey, bound);
+  const verification = lesson.verificationPassed
+    ? `public verification tag matched (undetected mismatch probability at most 2⁻¹⁶ under the independent random check)`
+    : 'verification tag differed — reject this run';
+  const simulatorCheck = lesson.actuallyAgreed
+    ? 'The simulator can see the corrected private strings agree.'
+    : 'The simulator can see a residual disagreement. A rare tag collision remains possible.';
+  postprocessResult.textContent =
+    `Alice's public syndrome: ${lesson.disclosureBits} bits over ${lesson.aliceSyndromes.length} blocks. Bob attempted ${lesson.attemptedCorrections} corrections.\n` +
+    `Alice's public verification tag: 16 bits; ${verification}.\n` +
+    `${simulatorCheck}\n` +
+    `Hypothetical budget: assumed Hmin ${bound} − public disclosure ${lesson.publicDisclosureBits} − margin ${lesson.leftoverMarginBits} for ε = 1/16 allows at most ${lesson.budgetCapBits} bits (floor at zero). After verification: ${lesson.outputBits} bits.\n` +
+    (lesson.outputBits > 0
+      ? `An independent public Toeplitz seed extracts ${lesson.outputBits} bits for each side; simulator agreement: ${lesson.aliceExtracted.every((bit, i) => bit === lesson.bobExtracted[i]) ? 'yes' : 'no (possible verification collision)'}. No AES key is created.`
+      : `No extractable bits under this assumption${lesson.verificationPassed ? '' : ' or after failed verification'}. No key is created.`) +
+    '\nThis is an assumed entropy budget, never a bound inferred from QBER or a finite-key QKD proof.';
+});
+
+function showOrdering(order: 'receipt-first' | 'bases-first'): void {
+  btnReceiptFirst.setAttribute('aria-pressed', String(order === 'receipt-first'));
+  btnBasesFirst.setAttribute('aria-pressed', String(order === 'bases-first'));
+  const cases = orderingExperiment(order);
+  const timeline = order === 'receipt-first'
+    ? '1. Alice sends → 2. Bob receives and measures → 3. Bob confirms receipt → 4. Alice announces bases. Eve must choose her intercept-resend basis before step 4.'
+    : '1. Alice sends → 2. Alice announces bases before Bob receives → 3. Eve stores each qubit, reads the basis, measures in it and forwards → 4. Bob receives and measures.';
+  orderingResult.textContent =
+    `${timeline}\nExact enumeration of all four BB84 states and random outcomes, conditioned on Bob using Alice's basis: ` +
+    `Bob errors ${cases.bobErrors}/${cases.siftedCases} (${cases.bobErrors / cases.siftedCases * 100}% QBER); ` +
+    `Eve knows ${cases.eveKnown}/${cases.siftedCases} sifted positions for certain (${cases.eveKnown / cases.siftedCases * 100}%), and her bit guess is correct in ${cases.eveGuessCorrect}/${cases.siftedCases} cases (${cases.eveGuessCorrect / cases.siftedCases * 100}%).\n` +
+    (order === 'bases-first'
+      ? 'Zero induced QBER coexists with Eve knowing every sifted bit in this flawed schedule. This assumes quantum storage and delivery control without a timing alarm.'
+      : 'Correct receipt ordering prevents this wait-for-the-basis attack. The 25% QBER applies only to the simple full intercept-resend model shown.');
+}
+
+btnReceiptFirst.addEventListener('click', () => showOrdering('receipt-first'));
+btnBasesFirst.addEventListener('click', () => showOrdering('bases-first'));

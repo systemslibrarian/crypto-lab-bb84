@@ -646,6 +646,35 @@ body {
   color: var(--alice);
 }
 
+/* Optional experiments remain fully visible; the protocol panels alone use
+   internal scrolling. Both experiments wrap into one column on narrow screens. */
+.teaching-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.teaching-panel { max-height: none; overflow: visible; }
+.teaching-panel p, .teaching-panel label { display: block; margin: 0 0 12px; line-height: 1.55; }
+.teaching-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0 12px; }
+.teaching-controls input, .teaching-controls button {
+  min-height: 44px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+}
+.teaching-controls input { width: 7rem; }
+.teaching-controls button { background: var(--btn-bg); cursor: pointer; }
+.teaching-controls button:hover:not(:disabled), .teaching-controls button[aria-pressed='true'] { border-color: var(--alice); color: var(--alice); }
+.teaching-controls button:disabled { opacity: .5; cursor: not-allowed; }
+.teaching-controls :focus-visible, .teaching-panel a:focus-visible { outline: 2px solid var(--alice); outline-offset: 2px; }
+.teaching-result { border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin: 10px 0; background: var(--input-bg); white-space: pre-line; overflow-wrap: anywhere; }
+.teaching-caveat, .teaching-source { color: var(--text-muted); font-size: .9rem; }
+.teaching-panel a { color: var(--alice); }
+
 /* ── Protocol Steps ─────────────────────────────────────── */
 .step {
   border: 1px solid var(--border);
@@ -885,6 +914,7 @@ body {
 
 /* ── Mobile (down to 320px) ─────────────────────────────── */
 @media (max-width: 767px) {
+  .teaching-grid { grid-template-columns: 1fr; }
   .panel-channel {
     height: 180px;
   }
