@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
 import { auditContrast, formatContrastFailures } from './contrast';
+import { auditControlNames, formatControlNameFailures } from './control-names';
 
 /**
  * WCAG regression gate. Deploys are already gated on the BB84 unit tests; this
@@ -121,6 +122,13 @@ async function scan(page: Page, label: string): Promise<void> {
   expect(
     formatContrastFailures(failures),
     `measured contrast failures in state: ${label}`
+  ).toEqual([]);
+
+  // axe's `label` rule accepts a bare `placeholder` as an accessible name, so a
+  // deleted label can leave this gate green. See `control-names.ts`.
+  expect(
+    formatControlNameFailures(await auditControlNames(page)),
+    `form controls named only by placeholder/title in state: ${label}`
   ).toEqual([]);
 }
 
