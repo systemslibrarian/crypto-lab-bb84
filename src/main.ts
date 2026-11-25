@@ -330,7 +330,7 @@ function updateCounters(sent: number, sifted: number, sacrificed: number, errors
   cntSifted.textContent = String(sifted);
   cntSiftPct.textContent = sent > 0 ? ((sifted / sent) * 100).toFixed(0) : '0';
   cntErrors.textContent = String(errors);
-  cntErrorPct.textContent = sacrificed > 0 ? ((errors / sacrificed) * 100).toFixed(1) : '0';
+  cntErrorPct.textContent = sacrificed > 0 ? ((errors / sacrificed) * 100).toFixed(1) + '%' : 'unobserved';
   cntKey.textContent = String(keyBits);
 }
 
@@ -338,17 +338,23 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function setGauge(qber: number, threshold = 0.11): void {
-  // Map 0-0.5 to angle 180° (left) to 0° (right)
-  const clamped = Math.min(0.5, Math.max(0, qber));
-  const angle = Math.PI - (clamped / 0.5) * Math.PI;
+function setGauge(qber: number | null, threshold = 0.11): void {
+  gaugeNeedle.setAttribute('visibility', qber === null ? 'hidden' : 'visible');
+  if (qber === null) {
+    gaugeLabel.textContent = 'Unobserved';
+    gaugeLabel.setAttribute('fill', 'currentColor');
+    gaugeSvg.setAttribute('aria-label', 'QBER unobserved. No sample has been compared.');
+    return;
+  }
+  // Map the full measured range to the dial, from zero on the left to one on the right.
+  const angle = (1 - qber) * Math.PI;
   const cx = 100, cy = 100, r = 75;
   const x = cx + r * Math.cos(angle);
   const y = cy - r * Math.sin(angle);
   gaugeNeedle.setAttribute('x2', String(x));
   gaugeNeedle.setAttribute('y2', String(y));
 
-  const pct = (clamped * 100).toFixed(1);
+  const pct = (qber * 100).toFixed(1);
   gaugeLabel.textContent = pct + '%';
   gaugeSvg.setAttribute('aria-label', `QBER gauge: ${pct} percent`);
 
@@ -357,8 +363,8 @@ function setGauge(qber: number, threshold = 0.11): void {
   // threshold (detected), amber as it approaches, green when comfortably clear.
   // Colors come from CSS so they track the active theme.
   let color = cssVar('--gauge-green') || '#00ff88';
-  if (clamped > threshold) color = cssVar('--gauge-red') || '#ff3366';
-  else if (clamped > threshold * 0.6) color = cssVar('--gauge-amber') || '#ffaa00';
+  if (qber >= threshold) color = cssVar('--gauge-red') || '#ff3366';
+  else if (qber > threshold * 0.6) color = cssVar('--gauge-amber') || '#ffaa00';
   gaugeNeedle.setAttribute('stroke', color);
   gaugeLabel.setAttribute('fill', color);
 }
@@ -578,7 +584,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
       setStepContent(i, '');
     }
     updateCounters(0, 0, 0, 0, 0);
-    setGauge(0);
+    setGauge(null);
     setResultBanner('hidden');
     clearSiftTable();
     clearMinimap();
@@ -669,14 +675,22 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     setStepState(4, 'active');
     const sacrificedCount = result.sacrificedBits;
     const errorCount = result.photons.filter(p => p.sacrificed && p.isError).length;
-    const qberPct = (result.qber * 100).toFixed(2);
     const threshPct = (qberThreshold * 100).toFixed(1);
 
     setGauge(result.qber, qberThreshold);
     await delay(500);
 
-    // Not reachable with the fixed 50% sacrifice rate, but the core's contract
-    // includes it, so handle it rather than silently misreporting it as Eve.
+    if (result.qber === null) {
+      const explanation = 'QBER is unobserved because Alice and Bob compared zero bits.';
+      setStepContent(4, explanation);
+      setStepState(4, 'error');
+      setResultBanner('detected', 'ABORT — ' + explanation);
+      setCaption('Run stopped before key derivation. Repeat the exchange to obtain a sample.');
+      updateCounters(nPhotons, siftedLen, sacrificedCount, 0, 0);
+      return;
+    }
+    const qberPct = (result.qber * 100).toFixed(2);
+
     if (result.status === 'aborted' && result.reason === 'insufficient-key-material') {
       setStepContent(4, 'No key bits survived the sacrifice — nothing to derive a key from.');
       setStepState(4, 'error');
@@ -885,7 +899,7 @@ function resetAll(): void {
   }
 
   updateCounters(0, 0, 0, 0, 0);
-  setGauge(0);
+  setGauge(null);
   setResultBanner('hidden');
   clearPhotons();
   eveNode.style.display = 'none';

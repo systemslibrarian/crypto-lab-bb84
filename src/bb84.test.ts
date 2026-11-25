@@ -28,14 +28,14 @@ test('sifting keeps ~50% of photons (bases agree half the time)', async () => {
 
 test('intercept-resend Eve drives QBER toward 25% and is detected', async () => {
   const r = await runBB84(N, true, 0, 0.11, 0.5);
-  assert.ok(r.qber > 0.18 && r.qber < 0.32, `QBER ${r.qber} should be ~0.25`);
+  assert.ok(r.qber !== null && r.qber > 0.18 && r.qber < 0.32, `QBER ${r.qber} should be ~0.25`);
   assert.equal(r.eveDetected, true, 'Eve must trip the 11% threshold');
 });
 
 test('channel noise alone can be tuned below the detection threshold', async () => {
   // 2% noise, 11% threshold → QBER should stay well under threshold, no false alarm.
   const r = await runBB84(N, false, 0.02, 0.11, 0.5);
-  assert.ok(r.qber < 0.06, `noisy-but-clean QBER ${r.qber} should stay low`);
+  assert.ok(r.qber !== null && r.qber < 0.06, `noisy-but-clean QBER ${r.qber} should stay low`);
   assert.equal(r.eveDetected, false, 'natural noise must not be flagged as Eve');
 });
 
@@ -221,6 +221,7 @@ test('a 0.2% noise rate flips ~0.2% of bits, not the next 1/256 step up', async 
   for (let i = 0; i < 30; i += 1) {
     // Threshold 1 so the run is never aborted by its own noise.
     const r = await runBB84(N, false, 0.002, 1, 0.5);
+    assert.ok(r.qber !== null);
     errors += Math.round(r.qber * r.sacrificedBits);
     sacrificed += r.sacrificedBits;
   }
@@ -237,4 +238,13 @@ test('privacy amplification stays deterministic for the same input', async () =>
     hex(await privacyAmplification(bits, 0.02)),
     'the same raw key must derive the same final key',
   );
+});
+
+test('zero comparison bits leave QBER unobserved and terminate before key derivation', async () => {
+  const result = await runBB84(64, false, 0, 0, 0);
+  assert.equal(result.qber, null);
+  assert.equal(result.sacrificedBits, 0);
+  assert.equal(result.eveDetected, false);
+  assert.equal(result.status === 'aborted' && result.reason, 'no-error-sample');
+  assert.equal('finalKey' in result, false);
 });

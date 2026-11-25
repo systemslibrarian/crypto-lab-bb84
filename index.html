@@ -230,7 +230,7 @@
       <div class="channel-counters" aria-live="polite">
         <span>Photons sent: <strong id="cnt-sent">0</strong></span>
         <span>Sifted: <strong id="cnt-sifted">0</strong> (<span id="cnt-sift-pct">0</span>%)</span>
-        <span>Errors: <strong id="cnt-errors">0</strong> (<span id="cnt-error-pct">0</span>%)</span>
+        <span>Errors: <strong id="cnt-errors">0</strong> (<span id="cnt-error-pct">unobserved</span>)</span>
         <span>Key bits: <strong id="cnt-key">0</strong></span>
       </div>
 
@@ -321,18 +321,18 @@
 
           <!-- QBER Gauge -->
           <div class="qber-gauge">
-            <svg id="gauge-svg" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QBER gauge: 0 percent">
+            <svg id="gauge-svg" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QBER unobserved. No sample has been compared.">
               <!-- Background arcs -->
               <path d="M 20 100 A 80 80 0 0 1 100 20" fill="none" stroke="#00ff88" stroke-width="10" opacity="0.3"/>
               <path d="M 100 20 A 80 80 0 0 1 145 35" fill="none" stroke="#ffaa00" stroke-width="10" opacity="0.3"/>
               <path d="M 145 35 A 80 80 0 0 1 180 100" fill="none" stroke="#ff3366" stroke-width="10" opacity="0.3"/>
               <!-- Needle -->
-              <line id="gauge-needle" x1="100" y1="100" x2="20" y2="100" stroke-width="2" stroke-linecap="round"/>
+              <line id="gauge-needle" visibility="hidden" x1="100" y1="100" x2="20" y2="100" stroke-width="2" stroke-linecap="round"/>
               <circle class="gauge-pivot" cx="100" cy="100" r="4"/>
               <!-- Labels -->
               <text class="gauge-tick" x="15" y="115" font-size="9" font-family="Courier New,monospace">0%</text>
-              <text class="gauge-tick" x="175" y="115" font-size="9" font-family="Courier New,monospace">50%</text>
-              <text id="gauge-label" x="100" y="90" text-anchor="middle" font-size="14" font-family="Courier New,monospace" font-weight="bold" aria-hidden="true">—</text>
+              <text class="gauge-tick" x="175" y="115" font-size="9" font-family="Courier New,monospace">100%</text>
+              <text id="gauge-label" x="100" y="90" text-anchor="middle" font-size="14" font-family="Courier New,monospace" font-weight="bold" aria-hidden="true">Unobserved</text>
             </svg>
           </div>
 

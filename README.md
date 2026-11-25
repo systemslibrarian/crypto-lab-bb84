@@ -20,6 +20,8 @@ The main run deliberately leaves out **information reconciliation** (error corre
 
 Run the BB84 protocol with or without an eavesdropper (Eve) and watch photons animate through the quantum channel in real time. Adjust the number of photons (64–512), channel noise rate, and QBER detection threshold with sliders. After key exchange completes, the demo automatically encrypts a user-supplied message with AES-256-GCM under Alice's derived key and attempts to decrypt it under Bob's — a round trip that only succeeds when the two keys really are identical.
 
+When no bits are sacrificed for comparison, the observed error rate is undefined. The lesson stops before key derivation. With a nonempty sample, the displayed QBER is the fraction of compared bits that differ.
+
 The retained-key length varies with the sampled bases; 16–128 retained bits is the expectation across the 64–512-photon settings, not a hard range. The SHA-256 output is 256 bits wide and has at most the smaller of 256 and the actual retained-bit count in entropy, potentially less given Eve's information. Hashing does not create secrecy. This step is illustrative key derivation, not proven QKD privacy amplification: the lab does not estimate conditional min-entropy or choose an extractor output length from a finite-key security bound. See [Renner and König, *Universally composable privacy amplification against quantum adversaries*](https://arxiv.org/abs/quant-ph/0403133).
 
 To make the protocol's mechanics legible rather than decorative, the demo also shows:

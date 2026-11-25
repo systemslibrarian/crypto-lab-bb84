@@ -103,11 +103,10 @@ test('a clean run headline is the QBER the page itself computed', async ({ page 
   // The pass is scoped to what a sampled test can actually establish.
   expect(step4).toContain('it cannot prove nobody listened');
 
-  // 4. The gauge, the counters and the caption report the same run. (The gauge
-  // clamps at 50%, which no reachable QBER here comes near.)
+  // 4. The gauge, the counters and the caption report the same measured rate.
   expect(await textOf(page, '#gauge-label')).toBe(`${pct.toFixed(1)}%`);
   expect(Number(await textOf(page, '#cnt-errors'))).toBe(errors);
-  expect(await textOf(page, '#cnt-error-pct')).toBe(pct.toFixed(1));
+  expect(await textOf(page, '#cnt-error-pct')).toBe(pct.toFixed(1) + '%');
   const caption = await textOf(page, '#channel-caption');
   expect(caption).toContain('Step 6');
   await expect(page.locator('#step-4')).toHaveClass(/\bdone\b/);
@@ -211,7 +210,7 @@ test('an eavesdropper run reaches the detected state and names the cause', async
 
   // Gauge, counters and caption must not tell a different story than the banner.
   expect(await textOf(page, '#gauge-label')).toBe(`${pct.toFixed(1)}%`);
-  expect(await textOf(page, '#cnt-error-pct')).toBe(pct.toFixed(1));
+  expect(await textOf(page, '#cnt-error-pct')).toBe(pct.toFixed(1) + '%');
   const caption = await textOf(page, '#channel-caption');
   expect(caption).toContain('Run aborted');
   expect(caption).toContain(`${pct.toFixed(2)}%`);
@@ -481,7 +480,7 @@ test('Reset clears the run and leaves every control live', async ({ page }) => {
   for (const id of ['cnt-sent', 'cnt-sifted', 'cnt-sift-pct', 'cnt-errors', 'cnt-key']) {
     expect(await textOf(page, `#${id}`), `#${id} survived Reset`).toBe('0');
   }
-  expect(await textOf(page, '#gauge-label')).toBe('0.0%');
+  expect(await textOf(page, '#gauge-label')).toBe('Unobserved');
   await expect(page.locator('#btn-encrypt')).toBeDisabled();
   await expect(page.locator('#sift-empty')).toBeVisible();
   expect(await page.locator('#minimap .mm-tick').count()).toBe(0);
@@ -513,4 +512,47 @@ test('Encrypt re-runs the round trip on demand after a completed run', async ({ 
   expect(step6).toContain('✓ Bob decrypted Alice\'s ciphertext: "second message"');
   expect(step6).not.toContain('Hello from BB84');
   await expect(page.locator('#step-6')).toHaveClass(/\bdone\b/);
+});
+
+
+test('the measured sample controls the error verdict, accessible rate and needle', async ({ page }) => {
+  await openStill(page);
+  for (const scenario of ['one-sifted', 'all-errors', 'at-threshold'] as const) {
+    await page.reload();
+    await page.evaluate(scenario => {
+      const native = crypto.getRandomValues.bind(crypto);
+      let byteDraw = 0;
+      crypto.getRandomValues = function<T extends ArrayBufferView | null>(array: T): T {
+        if (array instanceof Uint8Array && array.length === 64) {
+          byteDraw++;
+          array.fill(0);
+          if (byteDraw === 3 && scenario === 'one-sifted') array.fill(2, 1);
+          if (byteDraw === 3 && scenario === 'at-threshold') array.fill(2, 20);
+          return array;
+        }
+        if (array instanceof Uint32Array && array.length === 64) {
+          array.fill(0xffffffff);
+          if (scenario === 'all-errors') array.fill(0);
+          if (scenario === 'at-threshold') array[0] = 0;
+          return array;
+        }
+        return native(array);
+      };
+    }, scenario);
+    await runProtocol(page, { photons: 64, noise: 5, threshold: 10 });
+    const banner = page.locator('#result-banner');
+    if (scenario === 'one-sifted') {
+      await expect(banner).toContainText('zero bits');
+      await expect(page.locator('#gauge-svg')).toHaveAccessibleName(/unobserved/i);
+      await expect(page.locator('#cnt-error-pct')).toHaveText('unobserved');
+      await expect(page.locator('#btn-encrypt')).toBeDisabled();
+    } else {
+      const pct = scenario === 'all-errors' ? '100.0' : '10.0';
+      await expect(banner).toContainText('ABORT');
+      await expect(page.locator('#gauge-label')).toHaveText(pct + '%');
+      await expect(page.locator('#gauge-svg')).toHaveAccessibleName('QBER gauge: ' + pct + ' percent');
+      const red = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--gauge-red').trim());
+      await expect(page.locator('#gauge-needle')).toHaveAttribute('stroke', red);
+    }
+  }
 });

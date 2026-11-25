@@ -29,7 +29,8 @@ export interface BB84Transcript {
   siftedKey: Bit[];
   siftedIndices: number[];
   sacrificedBits: number;
-  qber: number;
+  /** Fraction of sacrificed bits in error, or null when none were compared. */
+  qber: number | null;
   /** True when the sampled QBER is at or above the abort threshold. */
   eveDetected: boolean;
 }
@@ -42,11 +43,12 @@ export interface BB84Aborted extends BB84Transcript {
    * (e.g. a 100% sacrifice rate), so there is nothing to derive a key from.
    * The old code hashed the empty raw key into a FIXED 256-bit value instead.
    */
-  reason: 'qber-threshold' | 'insufficient-key-material';
+  reason: 'qber-threshold' | 'insufficient-key-material' | 'no-error-sample';
 }
 
 export interface BB84Accepted extends BB84Transcript {
   status: 'accepted';
+  qber: number;
   /** Bob's retained bits (his detector readings) after the QBER sacrifice. */
   rawFinalKey: Bit[];
   /** Alice's bits at the same retained positions. Equal to Bob's only where no error occurred. */
@@ -280,7 +282,7 @@ export async function runBB84(
     }
   }
 
-  const qber = sacrificedIndices.length === 0 ? 0 : errors / sacrificedIndices.length;
+  const qber = sacrificedIndices.length === 0 ? null : errors / sacrificedIndices.length;
   // `>=`, not `>`. At exact equality the strict form took the "clean" branch and
   // the page then said the QBER was "below" / "under" the threshold — false, in
   // the one state where the wording matters most. Measured across 4,800 engine
@@ -290,7 +292,7 @@ export async function runBB84(
   // on the line. Aborting at the threshold rather than strictly above it is also
   // the fail-closed reading, and how BB84 parameter estimation is normally
   // described.
-  const eveDetected = qber >= safeThreshold;
+  const eveDetected = qber !== null && qber >= safeThreshold;
 
   const transcript: BB84Transcript = {
     photons,
@@ -304,6 +306,9 @@ export async function runBB84(
   // Fail closed: a transcript that failed parameter estimation never reaches
   // key derivation. The keys used to be derived unconditionally and merely
   // hidden by the UI.
+  if (qber === null) {
+    return { ...transcript, status: 'aborted', reason: 'no-error-sample' };
+  }
   if (eveDetected) {
     return { ...transcript, status: 'aborted', reason: 'qber-threshold' };
   }
@@ -338,6 +343,7 @@ export async function runBB84(
   return {
     ...transcript,
     status: 'accepted',
+    qber,
     rawFinalKey,
     rawFinalKeyAlice,
     residualErrors,
