@@ -670,7 +670,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
 
     // Step 4 — Error estimation
     setCaption(
-      `<strong>Step 4 — Error check.</strong> They sacrifice some kept bits to measure the QBER — the fraction that disagree. In this idealized full intercept-resend attack, Eve guesses bases and produces about 25% QBER without noise.`
+      `<strong>Step 4 — Error check.</strong> They draw a uniform sample without replacement from all kept positions to measure the QBER — the fraction that disagree. In this idealized full intercept-resend attack, Eve guesses bases and produces about 25% QBER without noise.`
     );
     setStepState(4, 'active');
     const sacrificedCount = result.sacrificedBits;
@@ -781,7 +781,7 @@ async function runProtocol(evePresent: boolean): Promise<void> {
     setStepContent(5,
       `<div class="pa-visual">` +
       `<div class="pa-bar" style="width:${rawPct.toFixed(1)}%"></div>` +
-      `<div class="pa-bar-label">Raw sifted key: ${rawBits} bits — Eve may know a few of them</div>` +
+      `<div class="pa-bar-label">Raw sifted key: ${rawBits} bits — an observer’s knowledge can range from none to all of them, depending on the devices and channel</div>` +
       `<div class="pa-bar pa-final" style="width:${finalPct.toFixed(1)}%"></div>` +
       `<div class="pa-bar-label">${finalNote}</div>` +
       `</div>` +

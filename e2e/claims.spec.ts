@@ -536,6 +536,11 @@ test('the measured sample controls the error verdict, accessible rate and needle
           if (scenario === 'at-threshold') array[0] = 0;
           return array;
         }
+        // Select the first ten positions deterministically for this exact 1/10 boundary fixture.
+        if (scenario === 'at-threshold' && array instanceof Uint32Array && array.length === 10) {
+          array.fill(0);
+          return array;
+        }
         return native(array);
       };
     }, scenario);

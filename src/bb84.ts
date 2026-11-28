@@ -98,6 +98,22 @@ function randomUint32(n: number): Uint32Array {
   return out;
 }
 
+/** Draw positions without replacement. Each remaining position has equal probability. */
+function samplePositions(positions: number[], count: number): number[] {
+  const pool = positions.slice();
+  const draws = randomUint32(count);
+  for (let i = 0; i < count; i += 1) {
+    const remaining = pool.length - i;
+    // Discard the incomplete residue group at the top of the 32-bit range.
+    const limit = 2 ** 32 - (2 ** 32 % remaining);
+    let draw = draws[i];
+    while (draw >= limit) draw = randomUint32(1)[0];
+    const next = i + (draw % remaining);
+    [pool[i], pool[next]] = [pool[next], pool[i]];
+  }
+  return pool.slice(0, count);
+}
+
 function randomBitFromByte(byte: number): Bit {
   return toBit(byte);
 }
@@ -267,7 +283,7 @@ export async function runBB84(
   }
 
   const sacrificedCount = Math.floor(siftedIndices.length * safeSacrifice);
-  const sacrificedIndices = siftedIndices.slice(0, sacrificedCount);
+  const sacrificedIndices = samplePositions(siftedIndices, sacrificedCount);
 
   for (const index of sacrificedIndices) {
     photons[index].sacrificed = true;
@@ -313,7 +329,7 @@ export async function runBB84(
     return { ...transcript, status: 'aborted', reason: 'qber-threshold' };
   }
 
-  const postSacrificeIndices = siftedIndices.slice(sacrificedCount);
+  const postSacrificeIndices = siftedIndices.filter(index => !photons[index].sacrificed);
   const rawFinalKey = postSacrificeIndices.map((idx) => photons[idx].bobBit);
   // Alice's side of the same retained positions. Deriving it is the only way to
   // tell whether the protocol actually produced a *shared* key: Bob's detector

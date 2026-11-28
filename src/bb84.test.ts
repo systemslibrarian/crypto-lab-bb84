@@ -20,6 +20,31 @@ test('clean channel (no Eve, no noise) yields QBER 0 and is not flagged', async 
   assert.equal(r.eveDetected, false);
 });
 
+test('the error sample can include the final sifted bit and keeps the ordered complement', async (t) => {
+  t.mock.method(crypto, 'getRandomValues', (array: Uint8Array | Uint32Array) => {
+    if (array instanceof Uint8Array) {
+      // All bases match. Alternate the data bits so retaining the wrong positions is visible.
+      array.set(Array.from({ length: array.length }, (_, i) => i % 2));
+    } else if (array.length === 8) {
+      array.fill(0xffffffff);
+      array[7] = 0; // only the last sifted position is a channel error
+    } else if (array.length === 3) {
+      array.set([7, 0xffffffff, 2]); // second draw falls in the incomplete residue group
+    } else {
+      assert.equal(array.length, 1);
+      array[0] = 4;
+    }
+    return array;
+  });
+  const result = await runBB84(8, false, 0.5, 1, 3 / 8);
+  assertAccepted(result);
+  assert.deepEqual(result.siftedIndices, [0, 1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(result.siftedIndices.filter(i => result.photons[i].sacrificed), [4, 5, 7]);
+  assert.equal(result.qber, 1 / 3);
+  assert.deepEqual(result.rawFinalKey, [0, 1, 0, 1, 0]);
+  assert.deepEqual(result.rawFinalKeyAlice, result.rawFinalKey);
+});
+
 test('sifting keeps ~50% of photons (bases agree half the time)', async () => {
   const r = await runBB84(N, false, 0, 0.11, 0.5);
   const ratio = r.siftedIndices.length / N;
